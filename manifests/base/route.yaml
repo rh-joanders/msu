@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: lamp-app
+  labels:
+    app: lamp-app
+spec:
+  to:
+    kind: Service
+    name: lamp-app  # Must match the service name
+  port:
+    targetPort: 8080
+  tls:
+    termination: edge  # TLS termination at the edge (router)
+    insecureEdgeTerminationPolicy: Redirect  # Redirect HTTP to HTTPS

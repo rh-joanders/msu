@@ -1,0 +1,96 @@
+apiVersion: tekton.dev/v1beta1
+kind: Pipeline
+metadata:
+  name: lamp-pipeline
+spec:
+  description: |
+    This pipeline clones the LAMP application repository, builds the container image,
+    updates the Kubernetes manifests, and triggers ArgoCD to sync the application.
+  workspaces:
+  - name: shared-workspace  # Workspace for sharing data between tasks
+  params:
+  - name: git-url
+    type: string
+    description: URL of the git repo
+  - name: git-revision
+    type: string
+    description: Git revision to build
+    default: main
+  - name: image-name
+    type: string
+    description: Name of the image to build
+  - name: image-tag
+    type: string
+    description: Tag of the image to build
+    default: latest
+  - name: deployment-namespace
+    type: string
+    description: Namespace to deploy to
+    default: lamp-dev
+  tasks:
+  # Task 1: Clone the git repository
+  - name: fetch-repository
+    taskRef:
+      name: git-clone  # Using the standard git-clone ClusterTask
+      kind: ClusterTask
+    workspaces:
+    - name: output
+      workspace: shared-workspace
+    params:
+    - name: url
+      value: $(params.git-url)
+    - name: revision
+      value: $(params.git-revision)
+    - name: subdirectory
+      value: ""
+    - name: deleteExisting
+      value: "true"
+
+  # Task 2: Build and push the container image
+  - name: build-image
+    taskRef:
+      name: buildah  # Using the standard buildah ClusterTask
+      kind: ClusterTask
+    runAfter:
+    - fetch-repository  # Must run after git clone
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    params:
+    - name: IMAGE
+      value: $(params.image-name):$(params.image-tag)
+    - name: CONTEXT
+      value: application  # Directory containing Dockerfile
+    - name: DOCKERFILE
+      value: Dockerfile
+
+  # Task 3: Update the deployment manifests with the new image
+  - name: update-manifests
+    taskRef:
+      name: update-deployment  # Custom task defined in tasks/build-image.yaml
+      kind: Task
+    runAfter:
+    - build-image  # Must run after image build
+    workspaces:
+    - name: source
+      workspace: shared-workspace
+    params:
+    - name: image-name
+      value: $(params.image-name)
+    - name: image-tag
+      value: $(params.image-tag)
+    - name: deployment-path
+      value: manifests/overlays/$(params.deployment-namespace)/kustomization.yaml
+
+  # Task 4: Trigger ArgoCD to sync the application
+  - name: sync-application
+    taskRef:
+      name: argocd-task-sync-and-wait  # Requires installation from Tekton catalog
+      kind: Task
+    runAfter:
+    - update-manifests  # Must run after manifest update
+    params:
+    - name: application-name
+      value: lamp-$(params.deployment-namespace)
+    - name: flags
+      value: --insecure  # Use if ArgoCD is not using TLS certificates

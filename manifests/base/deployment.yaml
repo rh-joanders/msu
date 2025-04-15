@@ -1,0 +1,63 @@
+# manifests/base/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: lamp-app
+  labels:
+    app: lamp-app
+spec:
+  replicas: 1  # Default replica count, can be overridden in overlays
+  selector:
+    matchLabels:
+      app: lamp-app
+  template:
+    metadata:
+      labels:
+        app: lamp-app
+    spec:
+      containers:
+      - name: lamp-app
+        image: lamp-app:latest  # Will be updated by pipeline
+        ports:
+        - containerPort: 8080
+          name: http
+        # Environment variables for MySQL connection
+        env:
+        - name: MYSQL_SERVICE_HOST
+          value: mysql  # Points to the MySQL service in the same namespace
+        - name: MYSQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: username
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: password
+        - name: MYSQL_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: mysql-secret
+              key: database
+        # Resource requests and limits for the container
+        resources:
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+        # Basic liveness and readiness probes
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5

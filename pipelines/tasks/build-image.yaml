@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: update-deployment
+spec:
+  description: |
+    This task updates the Kustomize overlay to reference the newly built image.
+    It's used to change the image reference in the manifest without requiring
+    a git commit or push, as this is a demo application.
+  workspaces:
+  - name: source  # Workspace containing the manifests
+  params:
+  - name: image-name
+    type: string
+    description: The name of the container image
+  - name: image-tag
+    type: string
+    description: The tag of the container image
+  - name: deployment-path
+    type: string
+    description: Path to the kustomization.yaml file to update
+  steps:
+  - name: update-yaml
+    image: quay.io/openshift/origin-cli:latest  # OpenShift CLI image with yaml editing tools
+    script: |
+      #!/bin/sh
+      set -e
+      echo "Updating image in ${DEPLOYMENT_PATH} to ${IMAGE_NAME}:${IMAGE_TAG}"
+      cd $(workspaces.source.path)
+      
+      # Add or update image references in kustomization.yaml
+      if ! grep -q "images:" ${DEPLOYMENT_PATH}; then
+        # If no images section exists, add it
+        echo "images:" >> ${DEPLOYMENT_PATH}
+        echo "- name: lamp-app" >> ${DEPLOYMENT_PATH}
+        echo "  newName: ${IMAGE_NAME}" >> ${DEPLOYMENT_PATH}
+        echo "  newTag: ${IMAGE_TAG}" >> ${DEPLOYMENT_PATH}
+      else
+        # If images section exists, update it
+        sed -i "s|newName: .*|newName: ${IMAGE_NAME}|g" ${DEPLOYMENT_PATH}
+        sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|g" ${DEPLOYMENT_PATH}
+      fi
+      
+      # In a real-world scenario, we would commit and push these changes to git
+      # For this demo, we're just modifying the files locally since ArgoCD is configured
+      # to detect changes
+      
+      echo "Deployment manifest updated successfully"
+    env:
+    - name: IMAGE_NAME
+      value: $(params.image-name)
+    - name: IMAGE_TAG
+      value: $(params.image-tag)
+    - name: DEPLOYMENT_PATH
+      value: $(params.deployment-path)

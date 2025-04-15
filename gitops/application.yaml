@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lamp-dev
+  namespace: openshift-gitops  # Must match the namespace where ArgoCD is installed
+  labels:
+    environment: dev
+spec:
+  # The project to use (default is common for simple setups)
+  project: default
+  
+  # Source of the application manifests
+  source:
+    # Git repository URL - update this to your fork!
+    repoURL: https://github.com/example/openshift-lamp-gitops.git
+    # Git branch, tag, or commit hash
+    targetRevision: main
+    # Path within the repository to the Kustomize directory
+    path: manifests/overlays/dev
+  
+  # Destination cluster and namespace
+  destination:
+    # Use the same cluster where ArgoCD is running
