@@ -10,5 +10,6 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  # Updated to use the default storage class
-  # Removed storageClassName to use the default
+  storageClassName: ocs-external-storagecluster-ceph-rbd
+    
+  # Remove storageClassName to use the default

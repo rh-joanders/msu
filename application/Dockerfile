@@ -1,5 +1,5 @@
 # Use PHP 8.1 with Apache as the base image
-FROM php:8.1-apache
+FROM ubi9/php-81
 
 # Install required PHP extensions and dependencies
 RUN apt-get update && apt-get install -y \
