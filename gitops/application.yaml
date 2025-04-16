@@ -2,35 +2,24 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: lamp-dev
-  namespace: openshift-gitops  # Must match the namespace where ArgoCD is installed
+  namespace: openshift-gitops
   labels:
     environment: dev
 spec:
-  # The project to use (default is common for simple setups)
   project: default
-  
-  # Source of the application manifests
   source:
-    # Git repository URL - update this to your fork!
-    repoURL: https://github.com/rh-joanders/msu.git
-    # Git branch, tag, or commit hash
+    repoURL: ${GIT_REPOSITORY_URL}
     targetRevision: main
-    # Path within the repository to the Kustomize directory
     path: manifests/overlays/dev
-  
-  # Destination cluster and namespace
   destination:
-    # Use the same cluster where ArgoCD is running
     server: 'https://kubernetes.default.svc'
     namespace: lamp-dev
-  
-  # Sync policy defines how ArgoCD should sync the application
   syncPolicy:
     automated:
-      prune: true  # Remove resources that no longer exist in Git
-      selfHeal: true  # Automatically sync when drift is detected
+      prune: true
+      selfHeal: true
     syncOptions:
-      - CreateNamespace=true  # Automatically create the namespace if it doesn't exist
+      - CreateNamespace=true
 
 ---
 apiVersion: argoproj.io/v1alpha1
@@ -43,13 +32,50 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/rh-joanders/msu.git
-    targetRevision: main
+    repoURL: ${GIT_REPOSITORY_URL}
+    targetRevision: prod
     path: manifests/overlays/prod
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: lamp-prod
   syncPolicy:
-    # Production syncs are not automated by default - requires manual approval
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - CreateNamespace=true
+
+---
+# This is an ApplicationSet that will dynamically create ArgoCD applications for feature branches
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: lamp-feature-branches
+  namespace: openshift-gitops
+spec:
+  generators:
+  - git:
+      repoURL: ${GIT_REPOSITORY_URL}
+      revision: HEAD
+      directories:
+      - path: manifests/overlays/lamp-feature-*
+  template:
+    metadata:
+      name: 'lamp-{{path.basename}}'
+      labels:
+        environment: feature
+    spec:
+      project: default
+      source:
+        repoURL: ${GIT_REPOSITORY_URL}
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+        - CreateNamespace=true

@@ -1,0 +1,35 @@
+
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: lamp-git-webhook
+  namespace: lamp-dev
+spec:
+  serviceAccountName: pipeline
+  triggers:
+  - name: git-push-trigger
+    bindings:
+    - ref: lamp-git-push-binding
+    template:
+      ref: lamp-trigger-template
+    interceptors:
+    - name: filter-by-event-type
+      ref:
+        name: "cel"
+      params:
+      - name: "filter"
+        value: "body.ref.startsWith('refs/heads/')"
+  resources:
+    kubernetesResource:
+      spec:
+        template:
+          spec:
+            serviceAccountName: pipeline
+            containers:
+            - resources:
+                limits:
+                  memory: 256Mi
+                  cpu: 100m
+                requests:
+                  memory: 128Mi
+                  cpu: 50m

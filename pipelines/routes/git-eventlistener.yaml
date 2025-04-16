@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: lamp-webhook-route
+  namespace: lamp-dev
+spec:
+  port:
+    targetPort: 8080
+  to:
+    kind: Service
+    name: el-lamp-git-webhook
+    weight: 100
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
