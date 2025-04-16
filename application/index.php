@@ -5,37 +5,80 @@ $username = getenv('MYSQL_USER') ?: "lamp_user";
 $password = getenv('MYSQL_PASSWORD') ?: "lamp_password";
 $dbname = getenv('MYSQL_DATABASE') ?: "lamp_db";
 
-// Create connection to MySQL
-$conn = new mysqli($servername, $username, $password, $dbname);
+// Connection status variables
+$connection_status = "Not attempted";
+$connection_error = "";
+$db_version = "";
+$tables = [];
+$visitor_count = 0;
 
-// Check connection
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Try to connect to MySQL with detailed error reporting
+try {
+    // Create connection
+    $conn = new mysqli($servername, $username, $password, $dbname);
+
+    // Check connection
+    if ($conn->connect_error) {
+        $connection_status = "Failed";
+        $connection_error = $conn->connect_error;
+        throw new Exception("Connection failed: " . $conn->connect_error);
+    }
+    
+    // Connection successful - get MySQL version
+    $result = $conn->query("SELECT VERSION() as version");
+    if ($result && $row = $result->fetch_assoc()) {
+        $db_version = $row['version'];
+    }
+    
+    $connection_status = "Success";
+    
+    // Get list of tables to verify database structure
+    $table_result = $conn->query("SHOW TABLES");
+    if ($table_result) {
+        while ($table_row = $table_result->fetch_array(MYSQLI_NUM)) {
+            $tables[] = $table_row[0];
+        }
+    }
+
+    // Check if table exists, if not create it
+    // This ensures our application works the first time it's launched
+    $sql = "CREATE TABLE IF NOT EXISTS visitors (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent VARCHAR(255)
+    )";
+
+    if ($conn->query($sql) !== TRUE) {
+        throw new Exception("Error creating table: " . $conn->error);
+    }
+
+    // Insert a new record for this visit with additional information
+    $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
+    $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
+    
+    $stmt = $conn->prepare("INSERT INTO visitors (visit_time, ip_address, user_agent) VALUES (NOW(), ?, ?)");
+    $stmt->bind_param("ss", $ip, $user_agent);
+    $stmt->execute();
+    $stmt->close();
+
+    // Get visitor count
+    $sql = "SELECT COUNT(*) as total FROM visitors";
+    $result = $conn->query($sql);
+    if ($result && $row = $result->fetch_assoc()) {
+        $visitor_count = $row["total"];
+    }
+
+    // Close the database connection
+    $conn->close();
+    
+} catch (Exception $e) {
+    // Handle exception
+    if ($connection_status !== "Failed") {
+        $connection_status = "Error";
+        $connection_error = $e->getMessage();
+    }
 }
-
-// Check if table exists, if not create it
-// This ensures our application works the first time it's launched
-$sql = "CREATE TABLE IF NOT EXISTS visitors (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-)";
-
-if ($conn->query($sql) !== TRUE) {
-    echo "Error creating table: " . $conn->error;
-}
-
-// Insert a new record for this visit
-$sql = "INSERT INTO visitors (visit_time) VALUES (NOW())";
-$conn->query($sql);
-
-// Get visitor count
-$sql = "SELECT COUNT(*) as total FROM visitors";
-$result = $conn->query($sql);
-$row = $result->fetch_assoc();
-$total = $row["total"];
-
-// Close the database connection
-$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -65,6 +108,35 @@ $conn->close();
             border-radius: 5px;
             margin-top: 20px;
         }
+        .success {
+            color: green;
+            font-weight: bold;
+        }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
+        .connection-test {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-top: 15px;
+            border-radius: 5px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        table, th, td {
+            border: 1px solid #ddd;
+        }
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
     </style>
 </head>
 <body>
@@ -78,9 +150,94 @@ $conn->close();
                 <li>PHP Version: <?php echo phpversion(); ?></li>
                 <li>Server: <?php echo $_SERVER['SERVER_SOFTWARE']; ?></li>
                 <li>Hostname: <?php echo gethostname(); ?></li>
-                <li>MySQL Connection: Successful</li>
-                <li>Total Visitors: <?php echo $total; ?></li>
+                <li>Total Visitors: <?php echo $visitor_count; ?></li>
             </ul>
+        </div>
+        
+        <div class="info">
+            <h2>Database Connection Test</h2>
+            <div class="connection-test">
+                <p>Connection Status: 
+                    <span class="<?php echo $connection_status === 'Success' ? 'success' : 'error'; ?>">
+                        <?php echo $connection_status; ?>
+                    </span>
+                </p>
+                
+                <?php if ($connection_status === 'Success'): ?>
+                    <p>MySQL Version: <?php echo $db_version; ?></p>
+                    
+                    <h3>Database Tables</h3>
+                    <?php if (count($tables) > 0): ?>
+                        <ul>
+                            <?php foreach ($tables as $table): ?>
+                                <li><?php echo htmlspecialchars($table); ?></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    <?php else: ?>
+                        <p>No tables found in database.</p>
+                    <?php endif; ?>
+                    
+                    <h3>Connection Details</h3>
+                    <table>
+                        <tr>
+                            <th>Parameter</th>
+                            <th>Value</th>
+                        </tr>
+                        <tr>
+                            <td>Host</td>
+                            <td><?php echo htmlspecialchars($servername); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Database</td>
+                            <td><?php echo htmlspecialchars($dbname); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Username</td>
+                            <td><?php echo htmlspecialchars($username); ?></td>
+                        </tr>
+                        <tr>
+                            <td>Connection Status</td>
+                            <td class="success">Connected</td>
+                        </tr>
+                    </table>
+                <?php else: ?>
+                    <div class="error">
+                        <p><strong>Connection Error:</strong> <?php echo htmlspecialchars($connection_error); ?></p>
+                        
+                        <h3>Connection Details</h3>
+                        <table>
+                            <tr>
+                                <th>Parameter</th>
+                                <th>Value</th>
+                            </tr>
+                            <tr>
+                                <td>Host</td>
+                                <td><?php echo htmlspecialchars($servername); ?></td>
+                            </tr>
+                            <tr>
+                                <td>Database</td>
+                                <td><?php echo htmlspecialchars($dbname); ?></td>
+                            </tr>
+                            <tr>
+                                <td>Username</td>
+                                <td><?php echo htmlspecialchars($username); ?></td>
+                            </tr>
+                            <tr>
+                                <td>Connection Status</td>
+                                <td class="error">Failed</td>
+                            </tr>
+                        </table>
+                        
+                        <p><strong>Troubleshooting Tips:</strong></p>
+                        <ul>
+                            <li>Check if MySQL pod is running</li>
+                            <li>Verify database credentials in secret</li>
+                            <li>Confirm MySQL service is properly configured</li>
+                            <li>Check network policies if applicable</li>
+                        </ul>
+                    </div>
+                <?php endif; ?>
+            </div>
         </div>
         
         <div class="info">
