@@ -32,7 +32,7 @@ spec:
   - name: fetch-repository
     taskRef:
       name: git-clone  # Using the standard git-clone ClusterTask
-      kind: ClusterTask
+      kind: Task
     workspaces:
     - name: output
       workspace: shared-workspace
@@ -50,7 +50,7 @@ spec:
   - name: build-image
     taskRef:
       name: buildah  # Using the standard buildah ClusterTask
-      kind: ClusterTask
+      kind: Task
     runAfter:
     - fetch-repository  # Must run after git clone
     workspaces:

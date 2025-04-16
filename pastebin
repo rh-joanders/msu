@@ -1,0 +1,15 @@
+    - name: debug-task
+      runAfter:
+        - fetch-repository
+      taskRef:
+        kind: Task
+        name: debug-task
+      workspaces:
+        - name: shared-workspace
+          workspace: shared-workspace
+
+
+
+
+Secret: Argo Pass
+Configmap: Argo User / Argo Server

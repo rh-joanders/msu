@@ -12,7 +12,7 @@ spec:
   # Source of the application manifests
   source:
     # Git repository URL - update this to your fork!
-    repoURL: https://github.com/example/openshift-lamp-gitops.git
+    repoURL: https://github.com/rh-joanders/msu.git
     # Git branch, tag, or commit hash
     targetRevision: main
     # Path within the repository to the Kustomize directory
@@ -21,3 +21,35 @@ spec:
   # Destination cluster and namespace
   destination:
     # Use the same cluster where ArgoCD is running
+    server: 'https://kubernetes.default.svc'
+    namespace: lamp-dev
+  
+  # Sync policy defines how ArgoCD should sync the application
+  syncPolicy:
+    automated:
+      prune: true  # Remove resources that no longer exist in Git
+      selfHeal: true  # Automatically sync when drift is detected
+    syncOptions:
+      - CreateNamespace=true  # Automatically create the namespace if it doesn't exist
+
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: lamp-prod
+  namespace: openshift-gitops
+  labels:
+    environment: prod
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rh-joanders/msu.git
+    targetRevision: main
+    path: manifests/overlays/prod
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: lamp-prod
+  syncPolicy:
+    # Production syncs are not automated by default - requires manual approval
+    syncOptions:
+      - CreateNamespace=true

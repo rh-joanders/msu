@@ -8,6 +8,12 @@ bases:
 # Set the namespace for all resources
 namespace: lamp-dev
 
+# Define images to replace
+images:
+- name: lamp-app
+  newName: image-registry.openshift-image-registry.svc:5000/lamp-dev/lamp-app
+  newTag: latest
+
 # Apply patches to the base resources
 patchesStrategicMerge:
 - |-

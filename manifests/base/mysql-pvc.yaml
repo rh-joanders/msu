@@ -6,8 +6,9 @@ metadata:
     app: mysql
 spec:
   accessModes:
-    - ReadWriteOnce  # RWO is the most widely supported access mode
+    - ReadWriteOnce
   resources:
     requests:
-      storage: 1Gi  # Adjust size based on your needs
-  storageClassName: gp2-csi  # Update to match your cluster's storage class
+      storage: 1Gi
+  # Updated to use the default storage class
+  # Removed storageClassName to use the default
