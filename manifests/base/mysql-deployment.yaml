@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: mysql
-        image: rhel8/mysql-80
+        image: quay.io/rhel8/mysql-80
         ports:
         - containerPort: 3306
           name: mysql
