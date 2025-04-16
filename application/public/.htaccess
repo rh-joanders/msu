@@ -1,0 +1,79 @@
+# Enable URL rewriting
+RewriteEngine On
+
+# Set the base path (if in a subdirectory)
+# RewriteBase /subdirectory/
+
+# Redirect to HTTPS (uncomment in production)
+# RewriteCond %{HTTPS} !=on
+# RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+# If the request is for a file or directory that exists, skip the rewriting
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+
+# Otherwise, route all requests to index.php
+RewriteRule ^ index.php [L]
+
+# Prevent access to sensitive files
+<FilesMatch "(\.(bak|config|dist|fla|inc|ini|log|psd|sh|sql|json|lock|swp)|~)$">
+    Order allow,deny
+    Deny from all
+    Satisfy All
+</FilesMatch>
+
+# Set security headers
+<IfModule mod_headers.c>
+    # Protect against XSS attacks
+    Header set X-XSS-Protection "1; mode=block"
+    
+    # Prevent MIME-sniffing
+    Header set X-Content-Type-Options "nosniff"
+    
+    # Enforce HTTPS (uncomment in production)
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    
+    # Control cross-origin resource access
+    Header set Access-Control-Allow-Origin "*"
+    
+    # Prevent embedding in iframes (uncomment if needed)
+    # Header set X-Frame-Options "SAMEORIGIN"
+</IfModule>
+
+# Enable compression for faster page loads
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript application/json
+</IfModule>
+
+# Enable caching
+<IfModule mod_expires.c>
+    ExpiresActive On
+    
+    # Cache favicon and images for 1 month
+    ExpiresByType image/x-icon "access plus 1 month"
+    ExpiresByType image/jpeg "access plus 1 month"
+    ExpiresByType image/png "access plus 1 month"
+    ExpiresByType image/gif "access plus 1 month"
+    ExpiresByType image/svg+xml "access plus 1 month"
+    
+    # Cache CSS, JavaScript and text files for 1 week
+    ExpiresByType text/css "access plus 1 week"
+    ExpiresByType text/javascript "access plus 1 week"
+    ExpiresByType application/javascript "access plus 1 week"
+    
+    # Cache HTML and XML files for 1 day
+    ExpiresByType text/html "access plus 1 day"
+    ExpiresByType text/xml "access plus 1 day"
+</IfModule>
+
+# PHP settings
+<IfModule mod_php8.c>
+    # Display PHP errors in development (set to Off in production)
+    php_flag display_errors On
+    
+    # Upload settings
+    php_value upload_max_filesize 10M
+    php_value post_max_size 10M
+    php_value max_input_time 300
+    php_value max_execution_time 300
+</IfModule>

@@ -1,0 +1,74 @@
+# PHP Kickstarter Template .dockerignore
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# Development/IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.komodoproject
+.komodotools/
+nbproject/
+.phpstorm.meta.php
+_ide_helper.php
+_ide_helper_models.php
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+
+# Logs and databases
+*.log
+*.sqlite
+*.sqlite3
+
+# Documentation
+README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+docs/
+
+# Test files
+tests/
+phpunit.xml
+.phpunit.result.cache
+coverage/
+
+# Node.js (if used for frontend)
+node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+yarn.lock
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Build files
+/build/
+/dist/
+
+# Temporary files
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig

@@ -1,0 +1,73 @@
+# PHP Kickstarter Template .gitignore
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Composer dependencies
+/vendor/
+composer.lock
+
+# Storage files
+/storage/logs/*
+/storage/cache/*
+/storage/app/*
+!/storage/logs/.gitkeep
+!/storage/cache/.gitkeep
+!/storage/app/.gitkeep
+
+# Database files
+*.sqlite
+*.sqlite3
+
+# Local configuration files
+*.local.php
+
+# IDE files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.komodoproject
+.komodotools/
+nbproject/
+.phpstorm.meta.php
+_ide_helper.php
+_ide_helper_models.php
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.directory
+
+# Temporary files
+*.swp
+*.swo
+*.tmp
+*.bak
+*.orig
+*.log
+*.cache
+
+# Build files
+/build/
+/dist/
+/node_modules/
+npm-debug.log
+yarn-error.log
+yarn-debug.log
+package-lock.json
+yarn.lock
+
+# Test coverage
+/coverage/
+.phpunit.result.cache
+/tests/coverage/
+clover.xml
+
+# Docker
+docker-compose.override.yml
