@@ -7,10 +7,10 @@
  */
 
 // Use environment variables or fallback to defaults from config.php
-$dbHost = defined('DB_HOST') ? DB_HOST : getenv('MYSQL_SERVICE_HOST') ?: 'mysql';
-$dbUser = defined('DB_USER') ? DB_USER : getenv('MYSQL_USER') ?: 'lamp_user';
-$dbPass = defined('DB_PASS') ? DB_PASS : getenv('MYSQL_PASSWORD') ?: 'lamp_password';
-$dbName = defined('DB_NAME') ? DB_NAME : getenv('MYSQL_DATABASE') ?: 'lamp_db';
+$dbHost = defined('DB_HOST') ? DB_HOST : (getenv('MYSQL_SERVICE_HOST') ?: 'mysql');
+$dbUser = defined('DB_USER') ? DB_USER : (getenv('MYSQL_USER') ?: 'lamp_user');
+$dbPass = defined('DB_PASS') ? DB_PASS : (getenv('MYSQL_PASSWORD') ?: 'lamp_password');
+$dbName = defined('DB_NAME') ? DB_NAME : (getenv('MYSQL_DATABASE') ?: 'lamp_db');
 
 /**
  * Get mysqli database connection
