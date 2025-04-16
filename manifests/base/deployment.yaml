@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: lamp-app
-        image: lamp-app:latest  # Will be updated by pipeline
+        image: image-registry.openshift-image-registry.svc:5000/$(NAMESPACE)/lamp-app:latest  # Will be updated by pipeline
         ports:
         - containerPort: 8080
           name: http
