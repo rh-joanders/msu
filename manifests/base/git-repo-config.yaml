@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: git-repo-config
+  labels:
+    app: lamp-app
+data:
+  GIT_REPOSITORY_URL: "${GIT_REPOSITORY_URL}"

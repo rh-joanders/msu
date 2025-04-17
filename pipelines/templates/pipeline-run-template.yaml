@@ -1,0 +1,23 @@
+apiVersion: tekton.dev/v1beta1
+kind: PipelineRun
+metadata:
+  generateName: lamp-pipeline-run-
+  namespace: lamp-dev
+spec:
+  pipelineRef:
+    name: lamp-pipeline
+  workspaces:
+  - name: shared-workspace
+    persistentVolumeClaim:
+      claimName: pipeline-workspace-pvc
+  params:
+  - name: git-url
+    value: ${GIT_REPOSITORY_URL}
+  - name: git-revision
+    value: ${GIT_BRANCH}
+  - name: image-name
+    value: image-registry.openshift-image-registry.svc:5000/${DEPLOYMENT_NAMESPACE}/lamp-app
+  - name: image-tag
+    value: ${IMAGE_TAG}
+  - name: deployment-namespace
+    value: ${DEPLOYMENT_NAMESPACE}
