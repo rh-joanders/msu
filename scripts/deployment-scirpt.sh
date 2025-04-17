@@ -74,12 +74,13 @@ if ! resource_exists "crd" "pipelineruns.tekton.dev"; then
   exit 1
 fi
 
-# Step 3: Create or update ConfigMap with Git repository URL
-echo "Updating Git repository ConfigMap..."
+# Step 3: Update Git repository ConfigMap file
+echo "Updating Git repository ConfigMap file..."
 GIT_REPO_CONFIG_PATH="manifests/base/git-repo-config.yaml"
 if [ -f "$GIT_REPO_CONFIG_PATH" ]; then
-  oc patch configmap git-repo-config -n lamp-dev --type merge \
-    -p "{\"data\": {\"GIT_REPOSITORY_URL\": \"$GIT_REPOSITORY_URL\"}}"
+  # Replace the placeholder with the actual Git repository URL
+  sed -i "s|GIT_REPOSITORY_URL: .*|GIT_REPOSITORY_URL: \"$GIT_REPOSITORY_URL\"|" "$GIT_REPO_CONFIG_PATH"
+  echo "Updated $GIT_REPO_CONFIG_PATH with repository URL: $GIT_REPOSITORY_URL"
 else
   echo "Warning: Git repository ConfigMap file not found at $GIT_REPO_CONFIG_PATH"
 fi
