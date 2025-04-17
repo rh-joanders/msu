@@ -14,26 +14,35 @@ if (file_exists(APP_ROOT . '/vendor/autoload.php')) {
     require APP_ROOT . '/vendor/autoload.php';
 }
 
-// Load configuration
-require_once APP_ROOT . '/app/config/config.php';
+// Load configuration if exists
+if (file_exists(APP_ROOT . '/app/config/config.php')) {
+    require_once APP_ROOT . '/app/config/config.php';
+} else {
+    // Define basic constants if config file doesn't exist
+    define('APP_ENV', getenv('APP_ENV') ?: 'development');
+    define('APP_DEBUG', true);
+}
 
-// Load database connection
-require_once APP_ROOT . '/app/config/database.php';
+// Load database connection if exists
+if (file_exists(APP_ROOT . '/app/config/database.php')) {
+    require_once APP_ROOT . '/app/config/database.php';
+}
 
-// Load the router
-require_once APP_ROOT . '/routes/web.php';
+// Load the router if exists
+if (file_exists(APP_ROOT . '/routes/web.php')) {
+    require_once APP_ROOT . '/routes/web.php';
+}
 
-// Initialize the application
-$app = new \App\Core\Application();
-
-// Run the application
-$app->run();
+// Initialize the application (only if the class exists)
+if (class_exists('\\App\\Core\\Application')) {
+    $app = new \App\Core\Application();
+    
+    // Run the application
+    $app->run();
+}
 
 // If routes aren't defined or no matching route found, show a welcome page
 if (!defined('ROUTE_MATCHED')) {
-    // Check if in development mode
-    $isDevelopment = true;
-    
     // Database connection parameters - from environment variables with fallbacks
     $servername = getenv('MYSQL_SERVICE_HOST') ?: "mysql";
     $username = getenv('MYSQL_USER') ?: "lamp_user";
@@ -114,6 +123,17 @@ if (!defined('ROUTE_MATCHED')) {
         }
     }
     
-    // Include the welcome template
-    include APP_ROOT . '/app/views/welcome.php';
+    // Include the welcome template if it exists
+    if (file_exists(APP_ROOT . '/app/views/welcome.php')) {
+        include APP_ROOT . '/app/views/welcome.php';
+    } else {
+        // Simple fallback if welcome view doesn't exist
+        echo "<h1>PHP Kickstarter Template</h1>";
+        echo "<p>Welcome to your new PHP application!</p>";
+        echo "<p>Connection status: " . $connection_status . "</p>";
+        if ($connection_status === "Success") {
+            echo "<p>MySQL version: " . $db_version . "</p>";
+            echo "<p>Visitor count: " . $visitor_count . "</p>";
+        }
+    }
 }
