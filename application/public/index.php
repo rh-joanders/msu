@@ -54,7 +54,6 @@ if (!defined('ROUTE_MATCHED')) {
     $connection_error = "";
     $db_version = "";
     $tables = [];
-    $visitor_count = 0;
 
     // Try to connect to MySQL with detailed error reporting
     try {
@@ -84,34 +83,6 @@ if (!defined('ROUTE_MATCHED')) {
             }
         }
 
-        // Check if table exists, if not create it
-        $sql = "CREATE TABLE IF NOT EXISTS visitors (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            visit_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            ip_address VARCHAR(45),
-            user_agent VARCHAR(255)
-        )";
-
-        if ($conn->query($sql) !== TRUE) {
-            throw new Exception("Error creating table: " . $conn->error);
-        }
-
-        // Insert a new record for this visit with additional information
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'Unknown';
-        $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
-        
-        $stmt = $conn->prepare("INSERT INTO visitors (visit_time, ip_address, user_agent) VALUES (NOW(), ?, ?)");
-        $stmt->bind_param("ss", $ip, $user_agent);
-        $stmt->execute();
-        $stmt->close();
-
-        // Get visitor count
-        $sql = "SELECT COUNT(*) as total FROM visitors";
-        $result = $conn->query($sql);
-        if ($result && $row = $result->fetch_assoc()) {
-            $visitor_count = $row["total"];
-        }
-
         // Close the database connection
         $conn->close();
         
@@ -133,7 +104,9 @@ if (!defined('ROUTE_MATCHED')) {
         echo "<p>Connection status: " . $connection_status . "</p>";
         if ($connection_status === "Success") {
             echo "<p>MySQL version: " . $db_version . "</p>";
-            echo "<p>Visitor count: " . $visitor_count . "</p>";
+            echo "<p>Tables in database: " . implode(", ", $tables) . "</p>";
+        } else {
+            echo "<p>Connection error: " . $connection_error . "</p>";
         }
     }
 }

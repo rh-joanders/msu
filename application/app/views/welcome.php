@@ -78,13 +78,9 @@
                 <li>PHP Version: <?php echo phpversion(); ?></li>
                 <li>Server: <?php echo $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown'; ?></li>
                 <li>Hostname: <?php echo gethostname(); ?></li>
-                <?php if (isset($visitor_count)): ?>
-                <li>Total Visitors: <?php echo $visitor_count; ?></li>
-                <?php endif; ?>
             </ul>
         </div>
 
-        <?php if (isset($connection_status)): ?>
         <div class="info">
             <h2>Database Connection Test</h2>
             <div class="connection-test">
@@ -170,7 +166,6 @@
                 <?php endif; ?>
             </div>
         </div>
-        <?php endif; ?>
         
         <div class="info">
             <h2>Getting Started</h2>
