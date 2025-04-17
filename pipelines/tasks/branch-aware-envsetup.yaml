@@ -1,0 +1,73 @@
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: branch-aware-envsetup
+spec:
+  description: |
+    This task sets up environment configuration based on the Git branch.
+    It creates environment overlays dynamically for feature branches.
+  workspaces:
+  - name: source
+    description: Workspace containing the git repository
+  params:
+  - name: git-branch
+    type: string
+    description: The Git branch name
+  - name: app-name
+    type: string
+    description: The application name to use (defaults to lamp-{branch})
+    default: ""
+  results:
+  - name: app-name
+    description: The application name to be used in subsequent tasks
+  - name: overlay-path
+    description: The path to the Kustomize overlay directory
+  steps:
+  - name: setup-environment
+    image: quay.io/openshift/origin-cli:latest
+    workingDir: $(workspaces.source.path)
+    script: |
+      #!/bin/bash
+      set -e
+      
+      # Normalize branch name (replace slashes with dashes)
+      NORMALIZED_BRANCH=$(echo "$(params.git-branch)" | sed 's|/|-|g')
+      
+      # Determine app name
+      if [ -n "$(params.app-name)" ]; then
+        APP_NAME="$(params.app-name)"
+      else
+        # For main/master branches, use lamp-dev
+        if [ "$NORMALIZED_BRANCH" == "main" ] || [ "$NORMALIZED_BRANCH" == "master" ]; then
+          APP_NAME="lamp-dev"
+        # For prod branch, use lamp-prod
+        elif [ "$NORMALIZED_BRANCH" == "prod" ]; then
+          APP_NAME="lamp-prod"
+        # For feature branches, create feature-specific namespace
+        else
+          APP_NAME="lamp-feature-${NORMALIZED_BRANCH}"
+        fi
+      fi
+      
+      echo "Setting up environment for branch: $(params.git-branch)"
+      echo "Using application name: ${APP_NAME}"
+      
+      # Create overlay directory if it doesn't exist
+      OVERLAY_DIR="manifests/overlays/${APP_NAME}"
+      if [ ! -d "$OVERLAY_DIR" ]; then
+        echo "Creating new overlay directory: ${OVERLAY_DIR}"
+        mkdir -p "$OVERLAY_DIR"
+        
+        # Copy from template
+        cp -r manifests/overlays/template/* "$OVERLAY_DIR/"
+        
+        # Replace placeholders in the overlay
+        find "$OVERLAY_DIR" -type f -exec sed -i "s/\${APP_NAME}/$APP_NAME/g" {} \;
+        find "$OVERLAY_DIR" -type f -exec sed -i "s/\${GIT_BRANCH}/$NORMALIZED_BRANCH/g" {} \;
+      else
+        echo "Overlay directory ${OVERLAY_DIR} already exists"
+      fi
+      
+      # Set results for use in subsequent tasks
+      echo -n "$APP_NAME" > $(results.app-name.path)
+      echo -n "$OVERLAY_DIR" > $(results.overlay-path.path)

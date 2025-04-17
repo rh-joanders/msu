@@ -2,16 +2,16 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: git-repo-config
-  namespace: lamp-dev
+  namespace: ${APP_NAME}
 data:
-  GIT_REPOSITORY_URL: "https://github.com/rh-joanders/msu.git"
+  GIT_REPOSITORY_URL: "${GIT_REPOSITORY_URL}"
 
 ---
 apiVersion: triggers.tekton.dev/v1beta1
 kind: TriggerBinding
 metadata:
   name: lamp-git-push-binding
-  namespace: lamp-dev
+  namespace: ${APP_NAME}
 spec:
   params:
   - name: git-repo-url

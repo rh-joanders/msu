@@ -1,5 +1,8 @@
 {
     "yaml.schemas": {
-        "https://json.schemastore.org/yamllint.json": "file:///Users/jonanderson/Library/Mobile%20Documents/com~apple~CloudDocs/Projects/msu/pipelines/tasks/build-image.yaml"
+        "https://json.schemastore.org/yamllint.json": [
+            "file:///Users/jonanderson/Library/Mobile%20Documents/com~apple~CloudDocs/Projects/msu/pipelines/tasks/build-image.yaml",
+            "file:///Users/jonanderson/Library/Mobile%20Documents/com~apple~CloudDocs/Projects/msu/pipelines/tasks/branch-aware-envsetup.yaml"
+        ]
     }
 }

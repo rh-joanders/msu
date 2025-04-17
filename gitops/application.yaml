@@ -1,53 +1,45 @@
-apiVersion: argoproj.io/v1alpha1
-kind: Application
+apiVersion: argoproj.io/v1beta1
+kind: ApplicationSet
 metadata:
-  name: lamp-dev
+  name: lamp-environments
   namespace: openshift-gitops
-  labels:
-    environment: dev
 spec:
-  project: default
-  source:
-    repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: main
-    path: manifests/overlays/dev
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: lamp-dev
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+  generators:
+  - list:
+      elements:
+      - name: lamp-dev
+        namespace: lamp-dev
+        path: manifests/overlays/lamp-dev
+        branch: main
+      - name: lamp-prod
+        namespace: lamp-prod
+        path: manifests/overlays/lamp-prod
+        branch: prod
+  template:
+    metadata:
+      name: '{{name}}'
+      namespace: openshift-gitops
+      labels:
+        environment: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: ${GIT_REPOSITORY_URL}
+        targetRevision: '{{branch}}'
+        path: '{{path}}'
+      destination:
+        server: 'https://kubernetes.default.svc'
+        namespace: '{{namespace}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
 
 ---
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: lamp-prod
-  namespace: openshift-gitops
-  labels:
-    environment: prod
-spec:
-  project: default
-  source:
-    repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: prod
-    path: manifests/overlays/prod
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: lamp-prod
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-
----
-# This is an ApplicationSet that will dynamically create ArgoCD applications for feature branches
-apiVersion: argoproj.io/v1alpha1
+# This ApplicationSet dynamically creates ArgoCD applications for feature branches
+apiVersion: argoproj.io/v1beta1
 kind: ApplicationSet
 metadata:
   name: lamp-feature-branches
@@ -61,7 +53,7 @@ spec:
       - path: manifests/overlays/lamp-feature-*
   template:
     metadata:
-      name: 'lamp-{{path.basename}}'
+      name: '{{path.basename}}'
       labels:
         environment: feature
     spec:

@@ -1,9 +1,8 @@
-
 apiVersion: triggers.tekton.dev/v1beta1
 kind: EventListener
 metadata:
   name: lamp-git-webhook
-  namespace: lamp-dev
+  namespace: ${APP_NAME}
 spec:
   serviceAccountName: pipeline
   triggers:
@@ -18,7 +17,7 @@ spec:
         name: "cel"
       params:
       - name: "filter"
-        value: "body.ref.startsWith('refs/heads/')"
+        value: "body.ref.startsWith('refs/heads/${GIT_BRANCH}')"
   resources:
     kubernetesResource:
       spec:
