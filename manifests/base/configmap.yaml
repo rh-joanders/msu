@@ -8,4 +8,6 @@ data:
   # Application configuration key-value pairs
   APP_ENV: "production"
   APP_DEBUG: "false"
-  # Add other configuration variables as needed
+  APP_NAME: "${APP_NAME}"
+  GIT_REPOSITORY_URL: "${GIT_REPOSITORY_URL}"
+  GIT_BRANCH: "${GIT_BRANCH}"

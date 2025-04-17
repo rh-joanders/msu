@@ -1,47 +1,29 @@
-# gitops/application-template.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: lamp-dev
-  namespace: openshift-gitops
+  name: ${APP_NAME}
+  namespace: ${ARGOCD_NAMESPACE}
   labels:
-    environment: dev
+    app.kubernetes.io/name: ${APP_NAME}
+    app.kubernetes.io/part-of: lamp-stack
 spec:
   project: default
   source:
     repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: main
-    path: manifests/overlays/dev
+    targetRevision: ${GIT_BRANCH}
+    path: manifests/overlays/${APP_NAME}
+    # Enable directory-based kustomization to support variable substitution
+    kustomize:
+      namePrefix: ""
+      images:
+        - image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app:${GIT_BRANCH}
   destination:
     server: 'https://kubernetes.default.svc'
-    namespace: lamp-dev
+    namespace: ${APP_NAME}
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-
----
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: lamp-prod
-  namespace: openshift-gitops
-  labels:
-    environment: prod
-spec:
-  project: default
-  source:
-    repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: prod
-    path: manifests/overlays/prod
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: lamp-prod
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
+      - ApplyOutOfSyncOnly=true

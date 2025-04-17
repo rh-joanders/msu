@@ -5,8 +5,7 @@ metadata:
 spec:
   description: |
     This task updates the Kustomize overlay to reference the newly built image.
-    It's used to change the image reference in the manifest without requiring
-    a git commit or push, as this is a demo application.
+    It allows updates without requiring Git commits, simplifying the demo workflow.
   workspaces:
   - name: source  # Workspace containing the manifests
   params:
@@ -21,12 +20,18 @@ spec:
     description: Path to the kustomization.yaml file to update
   steps:
   - name: update-yaml
-    image: quay.io/openshift/origin-cli:latest  # OpenShift CLI image with yaml editing tools
+    image: quay.io/openshift/origin-cli:latest
     script: |
       #!/bin/sh
       set -e
       echo "Updating image in ${DEPLOYMENT_PATH} to ${IMAGE_NAME}:${IMAGE_TAG}"
       cd $(workspaces.source.path)
+      
+      # Check if file exists
+      if [ ! -f "${DEPLOYMENT_PATH}" ]; then
+        echo "Error: ${DEPLOYMENT_PATH} does not exist"
+        exit 1
+      fi
       
       # Add or update image references in kustomization.yaml
       if ! grep -q "images:" ${DEPLOYMENT_PATH}; then
@@ -41,11 +46,9 @@ spec:
         sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|g" ${DEPLOYMENT_PATH}
       fi
       
-      # In a real-world scenario, we would commit and push these changes to git
-      # For this demo, we're just modifying the files locally since ArgoCD is configured
-      # to detect changes
-      
       echo "Deployment manifest updated successfully"
+      echo "Updated kustomization.yaml content:"
+      cat ${DEPLOYMENT_PATH}
     env:
     - name: IMAGE_NAME
       value: $(params.image-name)

@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base configuration
+bases:
+- ../../base
+
+# Variables to be replaced by the deployment script
+# APP_NAME will be used for the namespace and all resource names
+
+# Set the namespace for all resources
+namespace: ${APP_NAME}
+
+# Define images to replace
+images:
+- name: lamp-app
+  newName: image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app
+  newTag: ${GIT_BRANCH}
+
+# Apply patches to the base resources
+patchesStrategicMerge:
+- |-
+  # Patch to customize environment settings
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: lamp-app
+  spec:
+    replicas: 1
+    template:
+      spec:
+        containers:
+        - name: lamp-app
+          resources:
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+          env:
+          - name: APP_ENV
+            value: "${APP_NAME}"
+
+# Add common labels to all resources
+commonLabels:
+  app.kubernetes.io/part-of: ${APP_NAME}
+  app.kubernetes.io/managed-by: argocd
