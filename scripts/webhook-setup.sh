@@ -85,6 +85,7 @@ echo "Setting up pipeline permissions..."
 oc policy add-role-to-user edit system:serviceaccount:lamp-dev:pipeline -n lamp-dev
 oc policy add-role-to-user edit system:serviceaccount:lamp-dev:pipeline -n lamp-prod
 
+
 # Step 5: Ensure the pipeline workspace PVC exists
 echo "Checking pipeline workspace PVC..."
 if ! resource_exists "pvc" "pipeline-workspace-pvc" "lamp-dev"; then
