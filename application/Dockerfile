@@ -1,5 +1,5 @@
 # Use Red Hat Universal Base Image (UBI) with PHP 8.1
-FROM registry.access.redhat.com/ubi8/php-81:latest
+FROM registry.access.redhat.com/ubi9/php-81:latest
 
 # Switch to root for installation tasks
 USER 0
