@@ -84,8 +84,16 @@ create_namespace() {
   fi
 }
 
+
 # Step 1: Create the namespace
 create_namespace "$NAMESPACE"
+
+# Grant image-builder role to the pipeline service account in the application namespace
+oc policy add-role-to-user system:image-builder system:serviceaccount:$APP_NAME:pipeline -n $APP_NAME
+
+# Grant image-pusher role to ensure push access
+oc policy add-role-to-user system:image-pusher system:serviceaccount:$APP_NAME:pipeline -n $APP_NAME
+
 
 # Step 2: Check if OpenShift GitOps and Pipelines are installed
 echo "Checking for required operators..."
@@ -98,6 +106,8 @@ if ! resource_exists "crd" "pipelineruns.tekton.dev"; then
   echo "Error: OpenShift Pipelines operator is not installed. Please install it first."
   exit 1
 fi
+
+
 
 # Step 3: Create/Update Git repository ConfigMap
 echo "Creating/Updating Git repository ConfigMap..."

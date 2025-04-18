@@ -5,9 +5,8 @@ metadata:
 spec:
   description: |
     This task updates the Kustomize overlay to reference the newly built image.
-    It allows updates without requiring Git commits, simplifying the demo workflow.
   workspaces:
-  - name: source  # Workspace containing the manifests
+  - name: source
   params:
   - name: image-name
     type: string
@@ -18,37 +17,45 @@ spec:
   - name: deployment-path
     type: string
     description: Path to the kustomization.yaml file to update
+    default: "manifests/overlays/lamp-dev/kustomization.yaml"  # Providing a default
   steps:
   - name: update-yaml
     image: quay.io/openshift/origin-cli:latest
     script: |
       #!/bin/sh
       set -e
+      
+      # Make sure deployment path is set, or use default
+      DEPLOYMENT_PATH="${DEPLOYMENT_PATH:-manifests/overlays/lamp-dev/kustomization.yaml}"
+      
       echo "Updating image in ${DEPLOYMENT_PATH} to ${IMAGE_NAME}:${IMAGE_TAG}"
       cd $(workspaces.source.path)
       
       # Check if file exists
       if [ ! -f "${DEPLOYMENT_PATH}" ]; then
         echo "Error: ${DEPLOYMENT_PATH} does not exist"
+        echo "Current directory: $(pwd)"
+        echo "Listing available files:"
+        find . -name "kustomization.yaml" | sort
         exit 1
       fi
       
       # Add or update image references in kustomization.yaml
-      if ! grep -q "images:" ${DEPLOYMENT_PATH}; then
+      if ! grep -q "images:" "${DEPLOYMENT_PATH}"; then
         # If no images section exists, add it
-        echo "images:" >> ${DEPLOYMENT_PATH}
-        echo "- name: lamp-app" >> ${DEPLOYMENT_PATH}
-        echo "  newName: ${IMAGE_NAME}" >> ${DEPLOYMENT_PATH}
-        echo "  newTag: ${IMAGE_TAG}" >> ${DEPLOYMENT_PATH}
+        echo "images:" >> "${DEPLOYMENT_PATH}"
+        echo "- name: lamp-app" >> "${DEPLOYMENT_PATH}"
+        echo "  newName: ${IMAGE_NAME}" >> "${DEPLOYMENT_PATH}"
+        echo "  newTag: ${IMAGE_TAG}" >> "${DEPLOYMENT_PATH}"
       else
         # If images section exists, update it
-        sed -i "s|newName: .*|newName: ${IMAGE_NAME}|g" ${DEPLOYMENT_PATH}
-        sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|g" ${DEPLOYMENT_PATH}
+        sed -i "s|newName: .*|newName: ${IMAGE_NAME}|g" "${DEPLOYMENT_PATH}"
+        sed -i "s|newTag: .*|newTag: ${IMAGE_TAG}|g" "${DEPLOYMENT_PATH}"
       fi
       
       echo "Deployment manifest updated successfully"
       echo "Updated kustomization.yaml content:"
-      cat ${DEPLOYMENT_PATH}
+      cat "${DEPLOYMENT_PATH}"
     env:
     - name: IMAGE_NAME
       value: $(params.image-name)
