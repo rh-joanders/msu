@@ -5,29 +5,23 @@ FROM registry.access.redhat.com/ubi9/php-81:latest
 USER 0
 
 # Install required packages using yum
+# Note: curl and zip extension are already included in the base image
 RUN yum -y update && yum -y install \
     zip \
     unzip \
     git \
-    curl \
     libzip \
     libzip-devel \
+    php-mysqlnd \
+    php-pdo \
     && yum clean all
 
-# Install PHP extensions
-RUN pecl install zip && \
-    echo "extension=zip.so" > /etc/php.d/zip.ini && \
-    php -m | grep zip
-
-# Install PHP MySQL extensions
-RUN yum -y install mysql-devel && \
-    php -m | grep -i mysql || echo "Installing MySQL extensions..." && \
-    yum -y install php-mysqlnd php-pdo && \
-    yum clean all
+# Verify extensions are installed
+RUN php -m | grep -E 'zip|mysql|pdo'
 
 # Configure Apache to use port 8080 instead of 80 (OpenShift requirement)
-RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
-    sed -i 's/<VirtualHost \*:80>/<VirtualHost \*:8080>/g' /etc/httpd/conf.d/ssl.conf && \
+# This is likely already set in the UBI image, but ensuring it's configured
+RUN grep -q "Listen 8080" /etc/httpd/conf/httpd.conf || sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
     # Add ServerName to suppress warning
     echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf
 
@@ -35,9 +29,11 @@ RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 
 # Update Apache configuration
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
-    # Enable mod_rewrite for .htaccess support
-    sed -i 's/#LoadModule rewrite_module modules\/mod_rewrite.so/LoadModule rewrite_module modules\/mod_rewrite.so/g' /etc/httpd/conf/httpd.conf && \
+RUN mkdir -p ${APACHE_DOCUMENT_ROOT} && \
+    sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
+    # Enable mod_rewrite for .htaccess support (should be enabled by default in UBI)
+    grep -q "LoadModule rewrite_module" /etc/httpd/conf.modules.d/00-base.conf || \
+    echo "LoadModule rewrite_module modules/mod_rewrite.so" >> /etc/httpd/conf.modules.d/00-base.conf && \
     echo '<Directory "${APACHE_DOCUMENT_ROOT}">' >> /etc/httpd/conf/httpd.conf && \
     echo '    AllowOverride All' >> /etc/httpd/conf/httpd.conf && \
     echo '    Require all granted' >> /etc/httpd/conf/httpd.conf && \
@@ -49,8 +45,10 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . /var/www/html/
 
-# Install Composer
-RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
+# Install Composer (if not already installed)
+RUN if ! command -v composer &> /dev/null; then \
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer; \
+    fi
 
 # Install dependencies with Composer if composer.json exists
 RUN if [ -f "composer.json" ]; then composer install --no-dev --optimize-autoloader; fi
@@ -62,6 +60,7 @@ RUN mkdir -p storage/logs storage/cache storage/app && \
 # OpenShift specific security - prepare for running as non-root
 RUN chgrp -R 0 /var/www/html && \
     chmod -R g=u /var/www/html && \
+    # Adjust for UBI9 directory structure
     chgrp -R 0 /var/log/httpd && \
     chmod -R g=u /var/log/httpd && \
     chgrp -R 0 /run/httpd && \
