@@ -64,7 +64,7 @@ spec:
         - name: kind
           value: task
         - name: name
-          value: git-clone
+          value: buildah
         - name: namespace
           value: openshift-pipelines
       resolver: cluster
