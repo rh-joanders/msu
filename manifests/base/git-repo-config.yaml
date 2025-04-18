@@ -5,4 +5,4 @@ metadata:
   labels:
     app: lamp-app
 data:
-  GIT_REPOSITORY_URL: "https://github.com/rh-joanders/msu.git"
+  GIT_REPOSITORY_URL: "${GIT_REPOSITORY_URL}" 

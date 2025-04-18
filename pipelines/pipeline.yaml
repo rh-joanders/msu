@@ -36,8 +36,14 @@ spec:
   # Task 1: Clone the git repository
   - name: fetch-repository
     taskRef:
-      name: git-clone
-      kind: Task
+      params:
+        - name: kind
+          value: task
+        - name: name
+          value: git-clone
+        - name: namespace
+          value: openshift-pipelines
+      resolver: cluster
     workspaces:
     - name: output
       workspace: shared-workspace
@@ -54,8 +60,14 @@ spec:
   # Task 2: Build and push the container image
   - name: build-image
     taskRef:
-      name: buildah
-      kind: Task
+      params:
+        - name: kind
+          value: task
+        - name: name
+          value: git-clone
+        - name: namespace
+          value: openshift-pipelines
+      resolver: cluster
     runAfter:
     - fetch-repository
     workspaces:
@@ -67,7 +79,7 @@ spec:
     - name: CONTEXT
       value: application
     - name: DOCKERFILE
-      value: Dockerfile
+      value: application/Dockerfile
     - name: ADDITIONAL_TAGS
       value: $(params.add-latest-tag)
 
