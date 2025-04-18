@@ -75,7 +75,7 @@ spec:
       workspace: shared-workspace
     params:
     - name: IMAGE
-      value: $(params.image-name):$(params.image-tag)
+      value: image-registry.openshift-image-registry.svc:5000/$(params.image-name):$(params.image-tag)
     - name: CONTEXT
       value: application
     - name: DOCKERFILE
