@@ -65,6 +65,26 @@ RUN chgrp -R 0 /var/www/html && \
     chgrp -R 0 /run/httpd && \
     chmod -R g=u /run/httpd
 
+# Replace your current Apache configuration with this more direct approach
+RUN mkdir -p ${APACHE_DOCUMENT_ROOT} && \
+    echo "<VirtualHost *:8080>" > /etc/httpd/conf.d/vhost.conf && \
+    echo "    DocumentRoot ${APACHE_DOCUMENT_ROOT}" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "    <Directory ${APACHE_DOCUMENT_ROOT}>" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "        AllowOverride All" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "        Require all granted" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "        Options Indexes FollowSymLinks" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "    </Directory>" >> /etc/httpd/conf.d/vhost.conf && \
+    echo "</VirtualHost>" >> /etc/httpd/conf.d/vhost.conf
+
+# Increase Apache logging level
+RUN sed -i 's/LogLevel warn/LogLevel debug/g' /etc/httpd/conf/httpd.conf
+
+# Add PHP error logging
+RUN echo "error_reporting = E_ALL" >> /etc/php.ini && \
+    echo "display_errors = On" >> /etc/php.ini && \
+    echo "log_errors = On" >> /etc/php.ini && \
+    echo "error_log = /var/log/httpd/php_errors.log" >> /etc/php.ini
+
 # Create a simple index.php in the public directory if it doesn't exist
 RUN if [ ! -f "${APACHE_DOCUMENT_ROOT}/index.php" ]; then \
     echo '<?php echo "LAMP Application is running. If you see this page, Apache is correctly configured."; ?>' > ${APACHE_DOCUMENT_ROOT}/index.php; \
