@@ -80,15 +80,6 @@ patchesStrategicMerge:
           - name: MYSQL_PASSWORD
             value: "${MYSQL_PASSWORD}"
 
-- |-
-  # Customize PVC for MySQL if storage class is specified
-  apiVersion: v1
-  kind: PersistentVolumeClaim
-  metadata:
-    name: mysql-pvc
-  spec:
-    storageClassName: "${MYSQL_STORAGE_CLASS}"
-
 # Add ConfigMap with application configuration
 configMapGenerator:
 - name: lamp-dev-config
