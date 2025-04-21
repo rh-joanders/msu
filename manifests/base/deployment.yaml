@@ -51,7 +51,7 @@ spec:
         # Updated health checks
         livenessProbe:
           httpGet:
-            path: /index.php
+            path: /
             port: 8080
           initialDelaySeconds: 30
           periodSeconds: 30
@@ -59,7 +59,7 @@ spec:
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /index.php
+            path: /
             port: 8080
           initialDelaySeconds: 10
           periodSeconds: 10
