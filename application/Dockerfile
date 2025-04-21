@@ -4,7 +4,7 @@ FROM registry.access.redhat.com/ubi9/php-81:latest
 # Switch to root for installation tasks
 USER 0
 
-# Install required packages using yum
+# Install required packages
 RUN yum -y update && yum -y install \
     zip \
     unzip \
@@ -15,20 +15,27 @@ RUN yum -y update && yum -y install \
     php-pdo \
     && yum clean all
 
+# Set up a symlink from the default documentroot to our application
+RUN mkdir -p /opt/app-root/src/public
+
 # Set working directory
-WORKDIR /var/www/html
+WORKDIR /opt/app-root/src
 
-# Copy application files
-COPY . /var/www/html/
+# Copy application files to the standard UBI PHP path
+COPY . /opt/app-root/src/
 
-# Create the default DocumentRoot and link our application files
-RUN mkdir -p /etc/httpd/htdocs && \
-    ln -sf /var/www/html/public/* /etc/httpd/htdocs/ && \
-    # Set proper permissions
-    chgrp -R 0 /var/www/html /etc/httpd/htdocs && \
-    chmod -R g=u /var/www/html /etc/httpd/htdocs && \
+# Create .htaccess file to handle URL rewriting
+RUN echo 'RewriteEngine On\n\
+RewriteBase /\n\
+RewriteCond %{REQUEST_FILENAME} !-f\n\
+RewriteCond %{REQUEST_FILENAME} !-d\n\
+RewriteRule ^(.*)$ index.php?/$1 [L]' > /opt/app-root/src/public/.htaccess
+
+# Set proper permissions
+RUN chgrp -R 0 /opt/app-root && \
+    chmod -R g=u /opt/app-root && \
     # Ensure httpd can write to storage directory
-    chmod -R 777 /var/www/html/storage
+    chmod -R 777 /opt/app-root/src/storage
 
 # Switch back to non-root user
 USER 1001
