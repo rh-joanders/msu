@@ -39,8 +39,8 @@ patchesStrategicMerge:
               memory: "${PHP_MEMORY_LIMIT}"
               cpu: "${PHP_CPU_LIMIT}"
             requests:
-              memory: "$((($PHP_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
-              cpu: "$((($PHP_CPU_LIMIT | from_string | to_number) / 2))m"
+              memory: "${PHP_MEMORY_REQUEST}"
+              cpu: "${PHP_CPU_REQUEST}"
           env:
           - name: APP_ENV
             value: "${APP_NAME}"
@@ -68,8 +68,8 @@ patchesStrategicMerge:
               memory: "${MYSQL_MEMORY_LIMIT}"
               cpu: "${MYSQL_CPU_LIMIT}"
             requests:
-              memory: "$((($MYSQL_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
-              cpu: "$((($MYSQL_CPU_LIMIT | from_string | to_number) / 2))m"
+              memory: "${MYSQL_MEMORY_REQUEST}"
+              cpu: "${MYSQL_CPU_REQUEST}"
           env:
           - name: MYSQL_ROOT_PASSWORD
             value: "${MYSQL_ROOT_PASSWORD}"
