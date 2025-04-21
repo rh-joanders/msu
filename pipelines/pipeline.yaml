@@ -86,7 +86,7 @@ spec:
     - name: CONTEXT
       value: application
     - name: DOCKERFILE
-      value: Dockerfile
+      value: application/Dockerfile
     - name: ADDITIONAL_TAGS
       value: $(params.add-latest-tag)
 
