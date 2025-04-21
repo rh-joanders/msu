@@ -76,6 +76,34 @@ export PHP_CPU_LIMIT=${PHP_CPU_LIMIT:-"200m"}
 export MYSQL_MEMORY_LIMIT=${MYSQL_MEMORY_LIMIT:-"512Mi"}
 export MYSQL_CPU_LIMIT=${MYSQL_CPU_LIMIT:-"500m"}
 
+# Calculate request values (half of limits)
+# Extract numeric values for memory
+PHP_MEMORY_VALUE=$(echo "$PHP_MEMORY_LIMIT" | sed -E 's/([0-9]+).*/\1/')
+MYSQL_MEMORY_VALUE=$(echo "$MYSQL_MEMORY_LIMIT" | sed -E 's/([0-9]+).*/\1/')
+
+# Extract numeric values for CPU
+PHP_CPU_VALUE=$(echo "$PHP_CPU_LIMIT" | sed -E 's/([0-9]+).*/\1/')
+MYSQL_CPU_VALUE=$(echo "$MYSQL_CPU_LIMIT" | sed -E 's/([0-9]+).*/\1/')
+
+# Extract the unit for memory
+PHP_MEMORY_UNIT=$(echo "$PHP_MEMORY_LIMIT" | sed -E 's/[0-9]+//')
+MYSQL_MEMORY_UNIT=$(echo "$MYSQL_MEMORY_LIMIT" | sed -E 's/[0-9]+//')
+
+# Extract the unit for CPU
+PHP_CPU_UNIT=$(echo "$PHP_CPU_LIMIT" | sed -E 's/[0-9]+//')
+MYSQL_CPU_UNIT=$(echo "$MYSQL_CPU_LIMIT" | sed -E 's/[0-9]+//')
+
+# Calculate half of the values
+PHP_MEMORY_REQUEST=$((PHP_MEMORY_VALUE / 2))${PHP_MEMORY_UNIT}
+PHP_CPU_REQUEST=$((PHP_CPU_VALUE / 2))${PHP_CPU_UNIT}
+MYSQL_MEMORY_REQUEST=$((MYSQL_MEMORY_VALUE / 2))${MYSQL_MEMORY_UNIT}
+MYSQL_CPU_REQUEST=$((MYSQL_CPU_VALUE / 2))${MYSQL_CPU_UNIT}
+
+export PHP_MEMORY_REQUEST
+export PHP_CPU_REQUEST
+export MYSQL_MEMORY_REQUEST
+export MYSQL_CPU_REQUEST
+
 # Database configuration
 export MYSQL_DATABASE=${MYSQL_DATABASE:-"lamp_db"}
 export MYSQL_USER=${MYSQL_USER:-"lamp_user"}
@@ -136,7 +164,7 @@ export GIT_BRANCH
 export GIT_REPOSITORY_URL
 export ARGOCD_NAMESPACE
 export PHP_MEMORY_LIMIT
-export PHP_CPU_LIMIT  
+export PHP_CPU_LIMIT
 export MYSQL_MEMORY_LIMIT
 export MYSQL_CPU_LIMIT
 export MYSQL_DATABASE
@@ -149,7 +177,7 @@ export MYSQL_REPLICAS
 export INIT_DATABASE
 
 # Define the list of variables to substitute
-ENVSUBST_VARS='${APP_NAME} ${GIT_BRANCH} ${GIT_REPOSITORY_URL} ${ARGOCD_NAMESPACE} ${PHP_MEMORY_LIMIT} ${PHP_CPU_LIMIT} ${MYSQL_MEMORY_LIMIT} ${MYSQL_CPU_LIMIT} ${MYSQL_DATABASE} ${MYSQL_USER} ${MYSQL_PASSWORD} ${MYSQL_ROOT_PASSWORD} ${MYSQL_STORAGE_CLASS} ${PHP_REPLICAS} ${MYSQL_REPLICAS} ${INIT_DATABASE}'
+ENVSUBST_VARS='${APP_NAME} ${GIT_BRANCH} ${GIT_REPOSITORY_URL} ${ARGOCD_NAMESPACE} ${PHP_MEMORY_LIMIT} ${PHP_CPU_LIMIT} ${MYSQL_MEMORY_LIMIT} ${MYSQL_CPU_LIMIT} ${MYSQL_DATABASE} ${MYSQL_USER} ${MYSQL_PASSWORD} ${MYSQL_ROOT_PASSWORD} ${MYSQL_STORAGE_CLASS} ${PHP_REPLICAS} ${MYSQL_REPLICAS} ${INIT_DATABASE} ${PHP_MEMORY_REQUEST} ${PHP_CPU_REQUEST} ${MYSQL_MEMORY_REQUEST} ${MYSQL_CPU_REQUEST}'
 
 # Replace placeholder variables in the overlay using envsubst
 echo "Substituting variables in overlay files..."
@@ -184,10 +212,10 @@ echo "Environment overlay created successfully"
 echo "Overlay path: $OVERLAY_DIR"
 echo ""
 echo "Resource Configuration:"
-echo "  PHP Memory Limit: $PHP_MEMORY_LIMIT"
-echo "  PHP CPU Limit: $PHP_CPU_LIMIT"
-echo "  MySQL Memory Limit: $MYSQL_MEMORY_LIMIT"
-echo "  MySQL CPU Limit: $MYSQL_CPU_LIMIT"
+echo "  PHP Memory Limit: $PHP_MEMORY_LIMIT (Request: $PHP_MEMORY_REQUEST)"
+echo "  PHP CPU Limit: $PHP_CPU_LIMIT (Request: $PHP_CPU_REQUEST)"
+echo "  MySQL Memory Limit: $MYSQL_MEMORY_LIMIT (Request: $MYSQL_MEMORY_REQUEST)"
+echo "  MySQL CPU Limit: $MYSQL_CPU_LIMIT (Request: $MYSQL_CPU_REQUEST)"
 echo "  MySQL Storage Class: ${MYSQL_STORAGE_CLASS:-'cluster default'}"
 echo ""
 echo "To deploy this environment, run the deployment script with:"
