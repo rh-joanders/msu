@@ -85,6 +85,12 @@ RUN echo "error_reporting = E_ALL" >> /etc/php.ini && \
     echo "log_errors = On" >> /etc/php.ini && \
     echo "error_log = /var/log/httpd/php_errors.log" >> /etc/php.ini
 
+    # Fix permissions more aggressively
+RUN chmod -R 755 /var/www/html && \
+    find /var/www/html -type f -exec chmod 644 {} \; && \
+    find /var/www/html -type d -exec chmod 755 {} \; && \
+    chmod -R 777 /var/www/html/storage
+
 # Create a simple index.php in the public directory if it doesn't exist
 RUN if [ ! -f "${APACHE_DOCUMENT_ROOT}/index.php" ]; then \
     echo '<?php echo "LAMP Application is running. If you see this page, Apache is correctly configured."; ?>' > ${APACHE_DOCUMENT_ROOT}/index.php; \
