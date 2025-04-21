@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-env-configmap
+  namespace: ${NAMESPACE}
+  labels:
+    app: argocd-pipeline-config
+    argocd.argoproj.io/managed-by: manual
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+data:
+  argocd-server: "${ARGOCD_SERVER}"
+  argocd-namespace: "openshift-gitops"
+  flags: "--insecure --grpc-web"

@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-role
+  labels:
+    app: pipeline
+rules:
+# Allow managing pipeline resources
+- apiGroups: ["tekton.dev"]
+  resources: ["pipelineruns", "pipelines", "tasks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow access to ArgoCD config and secrets
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  resourceNames: ["argocd-env-configmap", "argocd-env-secret"]
+  verbs: ["get", "list", "watch"]
+# Allow managing pipeline workspace PVC
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  resourceNames: ["pipeline-workspace-pvc"]
+  verbs: ["get", "list", "watch"]
+# Allow managing deployments, services, routes
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  verbs: ["get", "list", "watch"]

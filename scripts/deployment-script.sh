@@ -101,21 +101,9 @@ if ! resource_exists "crd" "pipelineruns.tekton.dev"; then
   exit 1
 fi
 
-# Step 3: Create/Update Git repository ConfigMap
-echo "Creating/Updating Git repository ConfigMap..."
-TEMP_CONFIGMAP=$(mktemp)
-cat << EOF > "$TEMP_CONFIGMAP"
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: git-repo-config
-  namespace: $NAMESPACE
-data:
-  GIT_REPOSITORY_URL: "$GIT_REPOSITORY_URL"
-  APP_NAME: "$APP_NAME"
-EOF
-oc apply -f "$TEMP_CONFIGMAP"
-rm -f "$TEMP_CONFIGMAP"
+# Step 3: Apply Git repository ConfigMap from file
+echo "Applying Git repository ConfigMap..."
+envsubst < manifests/base/git-repo-config.yaml | oc apply -n $NAMESPACE -f -
 
 # Step 4: Apply Tekton task for ArgoCD sync if it doesn't exist
 echo "Setting up Tekton tasks..."
@@ -126,275 +114,40 @@ else
   echo "ArgoCD sync task already exists, skipping installation"
 fi
 
-# Step 5: Create or update pipeline workspace PVC
-echo "Creating/updating pipeline workspace PVC..."
-TEMP_PVC=$(mktemp)
-cat << EOF > "$TEMP_PVC"
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: pipeline-workspace-pvc
-  namespace: $NAMESPACE
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
-    requests:
-      storage: 1Gi
-EOF
-oc apply -f "$TEMP_PVC"
-rm -f "$TEMP_PVC"
+# Step 5: Apply pipeline workspace PVC from file
+echo "Applying pipeline workspace PVC..."
+oc apply -f pipelines/resources/pipeline-workspace-pvc.yaml -n "$NAMESPACE"
 
-# Step 6: Apply the update-deployment task from the correct file
-echo "Creating/updating update-deployment task..."
-if [ -f "pipelines/tasks/update-deployment.yaml" ]; then
-  echo "Applying update-deployment task from pipelines/tasks/update-deployment.yaml"
-  oc apply -f "pipelines/tasks/update-deployment.yaml" -n "$NAMESPACE"
-else
-  echo "Warning: pipelines/tasks/update-deployment.yaml not found, creating task inline"
-  TEMP_BUILD_TASK=$(mktemp)
-  cat << EOF > "$TEMP_BUILD_TASK"
-apiVersion: tekton.dev/v1beta1
-kind: Task
-metadata:
-  name: update-deployment
-  namespace: $NAMESPACE
-spec:
-  description: |
-    This task updates the Kustomize overlay to reference the newly built image.
-  workspaces:
-  - name: source
-  params:
-  - name: image-name
-    type: string
-    description: The name of the container image
-  - name: image-tag
-    type: string
-    description: The tag of the container image
-  - name: deployment-path
-    type: string
-    description: Path to the kustomization.yaml file to update
-  steps:
-  - name: update-yaml
-    image: quay.io/openshift/origin-cli:latest
-    script: |
-      #!/bin/sh
-      set -e
-      echo "Updating image in \${DEPLOYMENT_PATH} to \${IMAGE_NAME}:\${IMAGE_TAG}"
-      cd \$(workspaces.source.path)
-      
-      # Add or update image references in kustomization.yaml
-      if ! grep -q "images:" \${DEPLOYMENT_PATH}; then
-        # If no images section exists, add it
-        echo "images:" >> \${DEPLOYMENT_PATH}
-        echo "- name: lamp-app" >> \${DEPLOYMENT_PATH}
-        echo "  newName: \${IMAGE_NAME}" >> \${DEPLOYMENT_PATH}
-        echo "  newTag: \${IMAGE_TAG}" >> \${DEPLOYMENT_PATH}
-      else
-        # If images section exists, update it
-        sed -i "s|newName: .*|newName: \${IMAGE_NAME}|g" \${DEPLOYMENT_PATH}
-        sed -i "s|newTag: .*|newTag: \${IMAGE_TAG}|g" \${DEPLOYMENT_PATH}
-      fi
-      
-      echo "Deployment manifest updated successfully"
-    env:
-    - name: IMAGE_NAME
-      value: $(params.image-name)
-    - name: IMAGE_TAG
-      value: $(params.image-tag)
-    - name: DEPLOYMENT_PATH
-      value: $(params.deployment-path)
-EOF
-  oc apply -f "$TEMP_BUILD_TASK"
-  rm -f "$TEMP_BUILD_TASK"
-fi
+# Step 6: Apply the update-deployment task from file
+echo "Applying update-deployment task..."
+oc apply -f pipelines/tasks/update-deployment.yaml -n "$NAMESPACE"
 
-# Step 7: Update and apply pipeline definition
-echo "Creating/updating pipeline definition..."
-TEMP_PIPELINE=$(mktemp)
-cat << EOF > "$TEMP_PIPELINE"
-apiVersion: tekton.dev/v1beta1
-kind: Pipeline
-metadata:
-  name: lamp-pipeline
-  namespace: $NAMESPACE
-spec:
-  description: |
-    This pipeline clones the LAMP application repository, builds the container image,
-    updates the Kubernetes manifests, and triggers ArgoCD to sync the application.
-  workspaces:
-  - name: shared-workspace
-  params:
-  - name: git-url
-    type: string
-    description: URL of the git repo
-  - name: git-revision
-    type: string
-    description: Git revision to build
-    default: main
-  - name: image-name
-    type: string
-    description: Name of the image to build
-  - name: image-tag
-    type: string
-    description: Tag of the image to build
-    default: $IMAGE_TAG
-  - name: add-latest-tag
-    type: string
-    description: Whether to also tag the image as 'latest'
-    default: ""
-  - name: deployment-path
-    type: string
-    description: Path to kustomization.yaml
-    default: manifests/overlays/$NAMESPACE/kustomization.yaml
-  tasks:
-  - name: fetch-repository
-    taskRef:
-      name: git-clone
-      kind: Task
-    workspaces:
-    - name: output
-      workspace: shared-workspace
-    params:
-    - name: url
-      value: \$(params.git-url)
-    - name: revision
-      value: \$(params.git-revision)
-    - name: subdirectory
-      value: ""
-    - name: deleteExisting
-      value: "true"
+# Step 7: Apply pipeline definition from file
+echo "Applying pipeline definition..."
+oc apply -f pipelines/pipeline.yaml -n "$NAMESPACE"
 
-  - name: build-image
-    taskRef:
-      name: buildah
-      kind: Task
-    runAfter:
-    - fetch-repository
-    workspaces:
-    - name: source
-      workspace: shared-workspace
-    params:
-    - name: IMAGE
-      value: \$(params.image-name):\$(params.image-tag)
-    - name: CONTEXT
-      value: application
-    - name: DOCKERFILE
-      value: Dockerfile
-    - name: ADDITIONAL_TAGS
-      value: \$(params.add-latest-tag)
-
-  - name: update-manifests
-    taskRef:
-      name: update-deployment
-      kind: Task
-    runAfter:
-    - build-image
-    workspaces:
-    - name: source
-      workspace: shared-workspace
-    params:
-    - name: image-name
-      value: \$(params.image-name)
-    - name: image-tag
-      value: \$(params.image-tag)
-    - name: deployment-path
-      value: \$(params.deployment-path)
-
-  - name: sync-application
-    taskRef:
-      name: argocd-task-sync-and-wait
-      kind: Task
-    runAfter:
-    - update-manifests
-    params:
-    - name: application-name
-      value: $APP_NAME
-    - name: flags
-      value: --insecure
-EOF
-oc apply -f "$TEMP_PIPELINE"
-rm -f "$TEMP_PIPELINE"
-
-# Step 8: Apply ArgoCD application definition
+# Step 8: Apply ArgoCD application definition from file
 echo "Setting up ArgoCD application..."
-TEMP_ARGOCD_APP=$(mktemp)
-cat << EOF > "$TEMP_ARGOCD_APP"
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: ${APP_NAME}
-  namespace: ${ARGOCD_NAMESPACE}
-spec:
-  project: default
-  source:
-    repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: ${GIT_BRANCH}
-    path: manifests/overlays/${APP_NAME}
-  destination:
-    server: 'https://kubernetes.default.svc'
-    namespace: ${NAMESPACE}
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-EOF
-
-oc apply -f "$TEMP_ARGOCD_APP"
-rm -f "$TEMP_ARGOCD_APP"
+envsubst < gitops/application-template.yaml | oc apply -f -
 
 echo "Waiting for ArgoCD controller to process the application (10s)..."
 sleep 10
 
-# Step 9: Set up permissions (idempotent by default)
+# Step 9: Set up permissions
 echo "Setting up permissions..."
-# Set up permissions for pipeline service account
-oc policy add-role-to-user edit system:serviceaccount:${NAMESPACE}:pipeline -n ${NAMESPACE}
-oc policy add-role-to-user system:image-builder system:serviceaccount:${NAMESPACE}:pipeline -n ${NAMESPACE}
-oc policy add-role-to-user system:image-puller system:serviceaccount:${NAMESPACE}:default -n ${NAMESPACE}
+# Apply pipeline service account, role, and role binding
+oc apply -f pipelines/rbac/pipeline-serviceaccount.yaml -n "$NAMESPACE"
+oc apply -f pipelines/rbac/pipeline-role.yaml -n "$NAMESPACE"
+oc apply -f pipelines/rbac/pipeline-rolebinding.yaml -n "$NAMESPACE"
+
+# Create and apply cross-namespace role and rolebinding
+envsubst < pipelines/rbac/cross-namespace-role.yaml | oc apply -f -
+envsubst < pipelines/rbac/cross-namespace-rolebinding.yaml | oc apply -f -
 
 # Step 10: Trigger a pipeline run only if requested
 if [ "${TRIGGER_PIPELINE:-no}" = "yes" ]; then
   echo "Triggering pipeline run..."
-  TEMP_PIPELINE_RUN=$(mktemp)
-  
-  # Determine if we should tag as latest
-  ADDITIONAL_TAGS=""
-  if [ "${IMAGE_TAG_LATEST}" = "yes" ]; then
-    ADDITIONAL_TAGS="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/lamp-app:latest"
-  fi
-  
-  cat << EOF > "$TEMP_PIPELINE_RUN"
-apiVersion: tekton.dev/v1beta1
-kind: PipelineRun
-metadata:
-  generateName: lamp-pipeline-run-
-  namespace: ${NAMESPACE}
-spec:
-  pipelineRef:
-    name: lamp-pipeline
-  workspaces:
-  - name: shared-workspace
-    persistentVolumeClaim:
-      claimName: pipeline-workspace-pvc
-  params:
-  - name: git-url
-    value: ${GIT_REPOSITORY_URL}
-  - name: git-revision
-    value: ${GIT_BRANCH}
-  - name: image-name
-    value: image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/lamp-app
-  - name: image-tag
-    value: ${IMAGE_TAG}
-  - name: add-latest-tag
-    value: "${ADDITIONAL_TAGS}"
-  - name: deployment-path
-    value: manifests/overlays/${NAMESPACE}/kustomization.yaml
-EOF
-  oc create -f "$TEMP_PIPELINE_RUN"
-  rm -f "$TEMP_PIPELINE_RUN"
+  envsubst < pipelines/templates/pipeline-run-template.yaml | oc create -f -
 else
   echo "Skipping pipeline trigger. Set TRIGGER_PIPELINE=yes to trigger a pipeline run."
 fi
@@ -428,155 +181,11 @@ if [ -z "$ARGOCD_PASSWORD" ]; then
   exit 1
 fi
 
-# Create ArgoCD ConfigMap
-echo "Creating ArgoCD ConfigMap..."
-cat << EOF | oc apply -f -
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: argocd-env-configmap
-  namespace: $NAMESPACE
-  labels:
-    app: argocd-pipeline-config
-    argocd.argoproj.io/managed-by: manual
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
-data:
-  argocd-server: "${ARGOCD_SERVER}"
-  argocd-namespace: "openshift-gitops"
-  flags: "--insecure --grpc-web"
-EOF
-
-# Create ArgoCD Secret
-echo "Creating ArgoCD Secret..."
-cat << EOF | oc apply -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: argocd-env-secret
-  namespace: $NAMESPACE
-  labels:
-    app: argocd-pipeline-credentials
-    argocd.argoproj.io/managed-by: manual
-  annotations:
-    argocd.argoproj.io/sync-options: Prune=false
-type: Opaque
-stringData:
-  username: "admin"
-  password: "${ARGOCD_PASSWORD}"
-EOF
-
-# Create pipeline ServiceAccount
-echo "Creating pipeline ServiceAccount..."
-cat << EOF | oc apply -f -
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: pipeline
-  namespace: $NAMESPACE
-  labels:
-    app: pipeline
-EOF
-
-# Create pipeline Role
-echo "Creating pipeline Role..."
-cat << EOF | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: pipeline-role
-  namespace: $NAMESPACE
-  labels:
-    app: pipeline
-rules:
-# Allow managing pipeline resources
-- apiGroups: ["tekton.dev"]
-  resources: ["pipelineruns", "pipelines", "tasks"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-# Allow access to ArgoCD config and secrets
-- apiGroups: [""]
-  resources: ["configmaps", "secrets"]
-  resourceNames: ["argocd-config", "argocd-credentials"]
-  verbs: ["get", "list", "watch"]
-# Allow managing pipeline workspace PVC
-- apiGroups: [""]
-  resources: ["persistentvolumeclaims"]
-  resourceNames: ["pipeline-workspace-pvc"]
-  verbs: ["get", "list", "watch"]
-# Allow managing deployments, services, routes
-- apiGroups: ["apps"]
-  resources: ["deployments"]
-  verbs: ["get", "list", "watch", "update", "patch"]
-- apiGroups: [""]
-  resources: ["services"]
-  verbs: ["get", "list", "watch"]
-- apiGroups: ["route.openshift.io"]
-  resources: ["routes"]
-  verbs: ["get", "list", "watch"]
-EOF
-
-# Create pipeline RoleBinding
-echo "Creating pipeline RoleBinding..."
-cat << EOF | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: pipeline-rolebinding
-  namespace: $NAMESPACE
-  labels:
-    app: pipeline
-subjects:
-- kind: ServiceAccount
-  name: pipeline
-  namespace: $NAMESPACE
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: pipeline-role
-EOF
-
-# Create cross-namespace access role in ArgoCD namespace
-echo "Creating cross-namespace access role..."
-cat << EOF | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: pipeline-argocd-access-${APP_NAME}
-  namespace: openshift-gitops
-  labels:
-    app: pipeline
-rules:
-- apiGroups: ["argoproj.io"]
-  resources: ["applications"]
-  verbs: ["get", "list", "watch", "update", "patch", "sync"]
-- apiGroups: ["argoproj.io"]
-  resources: ["appprojects"]
-  verbs: ["get", "list", "watch"]
-EOF
-
-# Create cross-namespace RoleBinding
-echo "Creating cross-namespace RoleBinding..."
-cat << EOF | oc apply -f -
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: pipeline-argocd-access-${APP_NAME}
-  namespace: openshift-gitops
-  labels:
-    app: pipeline
-subjects:
-- kind: ServiceAccount
-  name: pipeline
-  namespace: ${NAMESPACE}
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: pipeline-argocd-access-${APP_NAME}
-EOF
-
-# Grant additional permissions to pipeline ServiceAccount
-echo "Configuring pipeline ServiceAccount permissions..."
-oc policy add-role-to-user edit system:serviceaccount:${NAMESPACE}:pipeline -n ${NAMESPACE}
+# Create ArgoCD configuration files
+export ARGOCD_SERVER
+export ARGOCD_PASSWORD
+envsubst < pipelines/rbac/argocd-configmap.yaml | oc apply -f -
+envsubst < pipelines/rbac/argocd-secret.yaml | oc apply -f -
 
 echo "=== Deployment Completed ==="
 echo "Verifying setup..."
