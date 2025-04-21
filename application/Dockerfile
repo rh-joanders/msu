@@ -1,4 +1,4 @@
-# Updated Dockerfile with proper Apache configuration
+# Updated Dockerfile with simplified Apache configuration
 FROM registry.access.redhat.com/ubi9/php-81:latest
 
 # Switch to root for installation tasks
@@ -23,23 +23,20 @@ RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
     echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf
 
 # Set the Apache document root to public directory
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 
-# Update Apache configuration - CRITICAL FIX HERE
+# Update Apache configuration - SIMPLIFIED APPROACH
 RUN mkdir -p ${APACHE_DOCUMENT_ROOT} && \
-    sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
-    sed -ri -e 's!/etc/httpd/htdocs!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
+    sed -ri -e "s!/var/www/html!${APACHE_DOCUMENT_ROOT}!g" /etc/httpd/conf/httpd.conf && \
+    sed -ri -e "s!/etc/httpd/htdocs!${APACHE_DOCUMENT_ROOT}!g" /etc/httpd/conf/httpd.conf && \
     # Enable mod_rewrite for .htaccess support
     grep -q "LoadModule rewrite_module" /etc/httpd/conf.modules.d/00-base.conf || \
-    echo "LoadModule rewrite_module modules/mod_rewrite.so" >> /etc/httpd/conf.modules.d/00-base.conf && \
-    # Configure directory permissions
-    cat > /etc/httpd/conf.d/document-root.conf << EOF
-<Directory "${APACHE_DOCUMENT_ROOT}">
-    AllowOverride All
-    Require all granted
-    Options Indexes FollowSymLinks
-</Directory>
-EOF
+    echo "LoadModule rewrite_module modules/mod_rewrite.so" >> /etc/httpd/conf.modules.d/00-base.conf
+
+# Write a simple config file with permissive directory settings
+RUN echo 'AllowOverride All' > /etc/httpd/conf.d/document-root.conf && \
+    echo 'Require all granted' >> /etc/httpd/conf.d/document-root.conf && \
+    echo 'Options Indexes FollowSymLinks' >> /etc/httpd/conf.d/document-root.conf
 
 # Set working directory
 WORKDIR /var/www/html
