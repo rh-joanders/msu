@@ -1,0 +1,99 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base configuration
+bases:
+- ../../base
+
+# Set the namespace for all resources
+namespace: lamp-dev
+
+# Define images to replace
+images:
+- name: lamp-app
+  newName: image-registry.openshift-image-registry.svc:5000/lamp-dev/lamp-app
+  newTag: main
+
+# Set common labels for all resources
+commonLabels:
+  app.kubernetes.io/part-of: lamp-dev
+  app.kubernetes.io/managed-by: argocd
+  app.kubernetes.io/environment: lamp-dev
+
+# Apply patches to customize resources
+patchesStrategicMerge:
+- |-
+  # Customize PHP deployment
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: lamp-app
+  spec:
+    replicas: ${PHP_REPLICAS}
+    template:
+      spec:
+        containers:
+        - name: lamp-app
+          resources:
+            limits:
+              memory: "${PHP_MEMORY_LIMIT}"
+              cpu: "${PHP_CPU_LIMIT}"
+            requests:
+              memory: "$((($PHP_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
+              cpu: "$((($PHP_CPU_LIMIT | from_string | to_number) / 2))m"
+          env:
+          - name: APP_ENV
+            value: "lamp-dev"
+          - name: MYSQL_DATABASE
+            value: "${MYSQL_DATABASE}"
+          - name: MYSQL_USER
+            value: "${MYSQL_USER}"
+          - name: MYSQL_PASSWORD
+            value: "${MYSQL_PASSWORD}"
+
+- |-
+  # Customize MySQL deployment
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: mysql
+  spec:
+    replicas: ${MYSQL_REPLICAS}
+    template:
+      spec:
+        containers:
+        - name: mysql
+          resources:
+            limits:
+              memory: "${MYSQL_MEMORY_LIMIT}"
+              cpu: "${MYSQL_CPU_LIMIT}"
+            requests:
+              memory: "$((($MYSQL_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
+              cpu: "$((($MYSQL_CPU_LIMIT | from_string | to_number) / 2))m"
+          env:
+          - name: MYSQL_ROOT_PASSWORD
+            value: "${MYSQL_ROOT_PASSWORD}"
+          - name: MYSQL_DATABASE
+            value: "${MYSQL_DATABASE}"
+          - name: MYSQL_USER
+            value: "${MYSQL_USER}"
+          - name: MYSQL_PASSWORD
+            value: "${MYSQL_PASSWORD}"
+
+- |-
+  # Customize PVC for MySQL if storage class is specified
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: mysql-pvc
+  spec:
+    storageClassName: "${MYSQL_STORAGE_CLASS}"
+
+# Add ConfigMap with application configuration
+configMapGenerator:
+- name: lamp-dev-config
+  literals:
+  - GIT_REPOSITORY_URL=https://github.com/rh-joanders/msu.git
+  - GIT_BRANCH=main
+  - APP_NAME=lamp-dev
+  - INIT_DATABASE=${INIT_DATABASE}

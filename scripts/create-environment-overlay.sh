@@ -4,66 +4,86 @@
 # Enable exit on error
 set -e
 
-# Usage information
-show_usage() {
-  echo "Usage: $0 [<app-name>] [<git-branch>]"
-  echo "  app-name:   Name of the application/namespace (defaults to APP_NAME from deployment.env)"
-  echo "  git-branch: Git branch to deploy (defaults to GIT_BRANCH from deployment.env)"
-  echo ""
-  echo "Example: $0 lamp-dev dev"
-  echo "Example: $0  # Uses values from deployment.env"
-  exit 1
-}
+# Determine the script's location and project root
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+PROJECT_ROOT="${SCRIPT_DIR}/.."
 
-# Load environment variables from deployment.env file
-load_env_file() {
-  local env_file="deployment.env"
-  
-  if [ -f "$env_file" ]; then
-    echo "Loading environment variables from $env_file..."
-    # Read the deployment.env file line by line
-    while IFS= read -r line || [ -n "$line" ]; do
-      # Skip empty lines and comments
-      if [[ -z "$line" || "$line" =~ ^# ]]; then
-        continue
-      fi
-      
-      # Extract variable name and value
-      if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
-        var_name="${BASH_REMATCH[1]}"
-        var_value="${BASH_REMATCH[2]}"
-        
-        # Remove leading/trailing whitespace
-        var_name=$(echo "$var_name" | xargs)
-        
-        # Export the variable if not already set
-        if [ -z "${!var_name}" ]; then
-          export "$var_name"="$var_value"
-        fi
-      fi
-    done < "$env_file"
-    echo "Environment variables loaded successfully"
-  else
-    echo "Warning: No deployment.env file found"
+# Load environment variables from deployment.env file if it exists
+# Try multiple locations for the deployment.env file
+ENV_FILE_LOCATIONS=(
+  "${SCRIPT_DIR}/deployment.env"     # In scripts directory
+  "${PROJECT_ROOT}/deployment.env"   # In project root
+  "./deployment.env"                 # Current directory
+)
+
+# Find the deployment.env file
+ENV_FILE=""
+for location in "${ENV_FILE_LOCATIONS[@]}"; do
+  if [ -f "$location" ]; then
+    ENV_FILE="$location"
+    break
   fi
-}
+done
 
-# Load environment variables first
-load_env_file
+if [ -n "$ENV_FILE" ]; then
+  echo "Loading environment variables from $ENV_FILE..."
+  # Read the deployment.env file line by line
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and comments
+    if [[ -z "$line" || "$line" =~ ^# ]]; then
+      continue
+    fi
+    
+    # Extract variable name and value
+    if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+      var_name="${BASH_REMATCH[1]}"
+      var_value="${BASH_REMATCH[2]}"
+      
+      # Remove leading/trailing whitespace
+      var_name=$(echo "$var_name" | xargs)
+      
+      # Export the variable if not already set
+      if [ -z "${!var_name}" ]; then
+        export "$var_name"="$var_value"
+      fi
+    fi
+  done < "$ENV_FILE"
+  echo "Environment variables loaded successfully"
+else
+  echo "No deployment.env file found in the following locations:"
+  for location in "${ENV_FILE_LOCATIONS[@]}"; do
+    echo "  - $location"
+  done
+  echo "Using command line arguments and defaults"
+fi
 
-# Get parameters - use command line arguments if provided, otherwise use deployment.env values
+# Get parameters - use command line arguments if provided, otherwise use env variables
 APP_NAME=${1:-$APP_NAME}
 GIT_BRANCH=${2:-$GIT_BRANCH}
 
-# Validate required parameters
+# Show current configuration
+echo "Current configuration:"
+echo "  APP_NAME: $APP_NAME"
+echo "  GIT_BRANCH: $GIT_BRANCH"
+echo "  GIT_REPOSITORY_URL: $GIT_REPOSITORY_URL"
+echo ""
+
+# Check if required variables are set
 if [ -z "$APP_NAME" ]; then
-  echo "Error: APP_NAME is required (either as argument or in deployment.env)"
-  show_usage
+  echo "Error: APP_NAME is not set."
+  echo "Please provide app-name as a command line argument or set it in deployment.env file."
+  echo "Usage: $0 [<app-name>] [<git-branch>]"
+  exit 1
 fi
 
 if [ -z "$GIT_BRANCH" ]; then
-  echo "Error: GIT_BRANCH is required (either as argument or in deployment.env)"
-  show_usage
+  echo "Warning: GIT_BRANCH is not set. Using default value: main"
+  GIT_BRANCH="main"
+fi
+
+if [ -z "$GIT_REPOSITORY_URL" ]; then
+  echo "Error: GIT_REPOSITORY_URL is not set. Please set it in deployment.env or as an environment variable."
+  exit 1
 fi
 
 # Ensure APP_NAME doesn't start with a hyphen
@@ -72,16 +92,22 @@ if [[ $APP_NAME == -* ]]; then
   exit 1
 fi
 
-# Set paths
+# Change to project root after loading env file
+cd "$PROJECT_ROOT"
+
+# Set paths (now relative to project root)
 TEMPLATE_DIR="manifests/overlays/template"
 OVERLAY_DIR="manifests/overlays/$APP_NAME"
 
 echo "Creating environment overlay for $APP_NAME (branch: $GIT_BRANCH)"
-echo "Using Git repository: ${GIT_REPOSITORY_URL}"
+echo "Using Git repository: $GIT_REPOSITORY_URL"
 
 # Check if template directory exists
 if [ ! -d "$TEMPLATE_DIR" ]; then
   echo "Error: Template directory $TEMPLATE_DIR not found"
+  echo "Current directory: $(pwd)"
+  echo "Listing directory structure:"
+  ls -la manifests/overlays/ || echo "Manifests directory not found"
   exit 1
 fi
 
@@ -105,39 +131,16 @@ cp -r "$TEMPLATE_DIR"/* "$OVERLAY_DIR"/
 echo "Copied template files to overlay directory"
 
 # Replace placeholder variables in the overlay
-# Use additional variables from deployment.env if available
 if [[ $(uname) == "Darwin" ]]; then
   # macOS requires -i '' for in-place editing
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${APP_NAME}/$APP_NAME/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${GIT_BRANCH}/$GIT_BRANCH/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${GIT_REPOSITORY_URL}/$GIT_REPOSITORY_URL/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_DATABASE}/$MYSQL_DATABASE/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_USER}/$MYSQL_USER/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_PASSWORD}/$MYSQL_PASSWORD/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_ROOT_PASSWORD}/$MYSQL_ROOT_PASSWORD/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_STORAGE_CLASS}/$MYSQL_STORAGE_CLASS/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_MEMORY_LIMIT}/$MYSQL_MEMORY_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_CPU_LIMIT}/$MYSQL_CPU_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${PHP_MEMORY_LIMIT}/$PHP_MEMORY_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${PHP_CPU_LIMIT}/$PHP_CPU_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${PHP_REPLICAS}/$PHP_REPLICAS/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i '' "s/\${MYSQL_REPLICAS}/$MYSQL_REPLICAS/g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i '' "s|\${APP_NAME}|$APP_NAME|g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i '' "s|\${GIT_BRANCH}|$GIT_BRANCH|g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i '' "s|\${GIT_REPOSITORY_URL}|$GIT_REPOSITORY_URL|g" {} \;
 else
   # Linux version
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${APP_NAME}/$APP_NAME/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${GIT_BRANCH}/$GIT_BRANCH/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${GIT_REPOSITORY_URL}/$GIT_REPOSITORY_URL/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_DATABASE}/$MYSQL_DATABASE/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_USER}/$MYSQL_USER/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_PASSWORD}/$MYSQL_PASSWORD/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_ROOT_PASSWORD}/$MYSQL_ROOT_PASSWORD/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_STORAGE_CLASS}/$MYSQL_STORAGE_CLASS/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_MEMORY_LIMIT}/$MYSQL_MEMORY_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_CPU_LIMIT}/$MYSQL_CPU_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${PHP_MEMORY_LIMIT}/$PHP_MEMORY_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${PHP_CPU_LIMIT}/$PHP_CPU_LIMIT/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${PHP_REPLICAS}/$PHP_REPLICAS/g" {} \;
-  find "$OVERLAY_DIR" -type f -exec sed -i "s/\${MYSQL_REPLICAS}/$MYSQL_REPLICAS/g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i "s|\${APP_NAME}|$APP_NAME|g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i "s|\${GIT_BRANCH}|$GIT_BRANCH|g" {} \;
+  find "$OVERLAY_DIR" -type f -exec sed -i "s|\${GIT_REPOSITORY_URL}|$GIT_REPOSITORY_URL|g" {} \;
 fi
 
 echo "Updated placeholder variables in overlay files"
@@ -145,15 +148,5 @@ echo ""
 echo "Environment overlay created successfully"
 echo "Overlay path: $OVERLAY_DIR"
 echo ""
-echo "Current configuration:"
-echo "  APP_NAME: $APP_NAME"
-echo "  GIT_BRANCH: $GIT_BRANCH"
-echo "  GIT_REPOSITORY_URL: $GIT_REPOSITORY_URL"
-echo "  MySQL Database: $MYSQL_DATABASE"
-echo "  PHP Replicas: $PHP_REPLICAS"
-echo ""
-echo "To deploy this environment, run the deployment script:"
-echo "./scripts/deployment-script.sh"
-echo ""
-echo "Or customize the deployment with environment variables:"
-echo "TRIGGER_PIPELINE=yes ./scripts/deployment-script.sh"
+echo "To deploy this environment, run the deployment script with:"
+echo "APP_NAME=$APP_NAME GIT_BRANCH=$GIT_BRANCH ./scripts/deployment-script.sh"
