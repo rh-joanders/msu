@@ -4,24 +4,64 @@
 # Enable exit on error
 set -e
 
-# Usage information
+# Function to show usage information
 show_usage() {
-  echo "Usage: $0 <app-name> [<git-branch>]"
+  echo "Usage: $0 [<app-name>] [<git-branch>]"
   echo "  app-name:   Name of the application/namespace (e.g. lamp-dev, lamp-prod, feature-123)"
   echo "  git-branch: Git branch to deploy (defaults to main)"
   echo ""
+  echo "If arguments are not provided, values from deployment.env or environment variables will be used."
+  echo ""
   echo "Example: $0 lamp-dev dev"
+  echo "Example: $0  # Uses values from deployment.env"
   exit 1
 }
 
-# Check for minimum required arguments
-if [ $# -lt 1 ]; then
-  show_usage
+# Check if envsubst is available
+if ! command -v envsubst &> /dev/null; then
+  echo "Error: envsubst command not found. Please install gettext-base or gettext package."
+  exit 1
 fi
 
-# Get parameters
-APP_NAME=$1
-GIT_BRANCH=${2:-main}
+# Load environment variables from deployment.env file if it exists
+ENV_FILE="deployment.env"
+if [ -f "$ENV_FILE" ]; then
+  echo "Loading environment variables from $ENV_FILE..."
+  # Read the deployment.env file line by line
+  while IFS= read -r line || [ -n "$line" ]; do
+    # Skip empty lines and comments
+    if [[ -z "$line" || "$line" =~ ^# ]]; then
+      continue
+    fi
+    
+    # Extract variable name and value
+    if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
+      var_name="${BASH_REMATCH[1]}"
+      var_value="${BASH_REMATCH[2]}"
+      
+      # Remove leading/trailing whitespace
+      var_name=$(echo "$var_name" | xargs)
+      
+      # Export the variable if not already set
+      if [ -z "${!var_name}" ]; then
+        export "$var_name"="$var_value"
+      fi
+    fi
+  done < "$ENV_FILE"
+  echo "Environment variables loaded successfully"
+else
+  echo "No deployment.env file found, using command line arguments or existing environment variables"
+fi
+
+# Get parameters - use command line arguments if provided, otherwise use environment variables
+APP_NAME=${1:-${APP_NAME}}
+GIT_BRANCH=${2:-${GIT_BRANCH:-main}}
+
+# Validate that APP_NAME is set
+if [ -z "$APP_NAME" ]; then
+  echo "Error: APP_NAME is not set. Please provide an app-name argument or set APP_NAME in deployment.env"
+  show_usage
+fi
 
 # Ensure APP_NAME doesn't start with a hyphen
 if [[ $APP_NAME == -* ]]; then
@@ -56,6 +96,15 @@ else
   echo "Created directory: $OVERLAY_DIR"
 fi
 
+# Create a trap to cleanup temporary files on exit
+cleanup() {
+  local exit_code=$?
+  # Find and remove any temporary files created by mktemp
+  find "$OVERLAY_DIR" -name "tmp.*" -type f -delete 2>/dev/null || true
+  exit $exit_code
+}
+trap cleanup EXIT
+
 # Copy template files to the new overlay directory
 cp -r "$TEMPLATE_DIR"/* "$OVERLAY_DIR"/
 echo "Copied template files to overlay directory"
@@ -63,6 +112,11 @@ echo "Copied template files to overlay directory"
 # Export variables for envsubst
 export APP_NAME
 export GIT_BRANCH
+export GIT_REPOSITORY_URL
+export ARGOCD_NAMESPACE
+
+# Define the list of variables to substitute
+ENVSUBST_VARS='${APP_NAME} ${GIT_BRANCH} ${GIT_REPOSITORY_URL} ${ARGOCD_NAMESPACE}'
 
 # Replace placeholder variables in the overlay using envsubst
 echo "Substituting variables in overlay files..."
@@ -70,11 +124,25 @@ find "$OVERLAY_DIR" -type f | while read -r file; do
   # Create a temporary file for the substitution
   temp_file=$(mktemp)
   
-  # Use envsubst to substitute variables
-  envsubst < "$file" > "$temp_file"
+  # Validate that the file exists and is readable
+  if [ ! -r "$file" ]; then
+    echo "Error: Cannot read file $file"
+    continue
+  fi
   
-  # Move the temporary file back to replace the original
-  mv "$temp_file" "$file"
+  # Use envsubst to substitute variables
+  if ! envsubst "$ENVSUBST_VARS" < "$file" > "$temp_file"; then
+    echo "Error: Failed to substitute variables in $file"
+    rm -f "$temp_file"
+    continue
+  fi
+  
+  # Replace the original file with the substituted version
+  if ! mv "$temp_file" "$file"; then
+    echo "Error: Failed to update $file"
+    rm -f "$temp_file"
+    continue
+  fi
 done
 
 echo "Updated placeholder variables in overlay files"
@@ -84,3 +152,5 @@ echo "Overlay path: $OVERLAY_DIR"
 echo ""
 echo "To deploy this environment, run the deployment script with:"
 echo "APP_NAME=$APP_NAME GIT_BRANCH=$GIT_BRANCH ./scripts/single-env-deployment.sh"
+echo "Or if these values are in deployment.env, simply run:"
+echo "./scripts/single-env-deployment.sh"
