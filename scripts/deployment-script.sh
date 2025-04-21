@@ -1,7 +1,7 @@
 # Enable exit on error and command tracing for better debugging
-#set -e
+set -e
 # Uncomment the following line when debugging
-set -x
+#set -x
 
 # Load environment variables from deployment.env file if it exists
 ENV_FILE="deployment.env"
@@ -536,8 +536,192 @@ EOF
 oc apply -f "$TEMP_WEBHOOK_ROUTE"
 rm -f "$TEMP_WEBHOOK_ROUTE"
 
+
 # Step 12: Print information and verify setup
 echo "=== Deployment Completed ==="
+# Step X: Create ArgoCD Configuration for Pipeline
+echo "Setting up ArgoCD configuration for pipeline..."
+
+# Get ArgoCD server URL from route
+echo "Getting ArgoCD server URL..."
+ARGOCD_ROUTE=$(oc get route openshift-gitops-server -n openshift-gitops -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+if [ -z "$ARGOCD_ROUTE" ]; then
+  ARGOCD_ROUTE=$(oc get route argocd-server -n openshift-gitops -o jsonpath='{.spec.host}' 2>/dev/null || echo "")
+fi
+
+if [ -z "$ARGOCD_ROUTE" ]; then
+  echo "Warning: Could not find ArgoCD route. Using internal service URL."
+  ARGOCD_SERVER="argocd-server.openshift-gitops.svc.cluster.local:443"
+else
+  ARGOCD_SERVER="${ARGOCD_ROUTE}:443"
+fi
+
+# Get ArgoCD admin password from cluster secret
+echo "Retrieving ArgoCD admin password..."
+ARGOCD_PASSWORD=$(oc get secret openshift-gitops-cluster -n openshift-gitops -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d)
+if [ -z "$ARGOCD_PASSWORD" ]; then
+  ARGOCD_PASSWORD=$(oc get secret argocd-cluster -n openshift-gitops -o jsonpath='{.data.admin\.password}' 2>/dev/null | base64 -d)
+fi
+
+if [ -z "$ARGOCD_PASSWORD" ]; then
+  echo "Error: Could not retrieve ArgoCD admin password"
+  exit 1
+fi
+
+# Create ArgoCD ConfigMap
+echo "Creating ArgoCD ConfigMap..."
+cat << EOF | oc apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argocd-env-configmap
+  namespace: $NAMESPACE
+  labels:
+    app: argocd-pipeline-config
+    argocd.argoproj.io/managed-by: manual
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+data:
+  argocd-server: "${ARGOCD_SERVER}"
+  argocd-namespace: "openshift-gitops"
+  flags: "--insecure --grpc-web"
+EOF
+
+# Create ArgoCD Secret
+echo "Creating ArgoCD Secret..."
+cat << EOF | oc apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: argocd-env-secret
+  namespace: $NAMESPACE
+  labels:
+    app: argocd-pipeline-credentials
+    argocd.argoproj.io/managed-by: manual
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false
+type: Opaque
+stringData:
+  username: "admin"
+  password: "${ARGOCD_PASSWORD}"
+EOF
+
+# Create pipeline ServiceAccount
+echo "Creating pipeline ServiceAccount..."
+cat << EOF | oc apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline
+  namespace: $NAMESPACE
+  labels:
+    app: pipeline
+EOF
+
+# Create pipeline Role
+echo "Creating pipeline Role..."
+cat << EOF | oc apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-role
+  namespace: $NAMESPACE
+  labels:
+    app: pipeline
+rules:
+# Allow managing pipeline resources
+- apiGroups: ["tekton.dev"]
+  resources: ["pipelineruns", "pipelines", "tasks"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+# Allow access to ArgoCD config and secrets
+- apiGroups: [""]
+  resources: ["configmaps", "secrets"]
+  resourceNames: ["argocd-config", "argocd-credentials"]
+  verbs: ["get", "list", "watch"]
+# Allow managing pipeline workspace PVC
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  resourceNames: ["pipeline-workspace-pvc"]
+  verbs: ["get", "list", "watch"]
+# Allow managing deployments, services, routes
+- apiGroups: ["apps"]
+  resources: ["deployments"]
+  verbs: ["get", "list", "watch", "update", "patch"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["route.openshift.io"]
+  resources: ["routes"]
+  verbs: ["get", "list", "watch"]
+EOF
+
+# Create pipeline RoleBinding
+echo "Creating pipeline RoleBinding..."
+cat << EOF | oc apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-rolebinding
+  namespace: $NAMESPACE
+  labels:
+    app: pipeline
+subjects:
+- kind: ServiceAccount
+  name: pipeline
+  namespace: $NAMESPACE
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipeline-role
+EOF
+
+# Create cross-namespace access role in ArgoCD namespace
+echo "Creating cross-namespace access role..."
+cat << EOF | oc apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pipeline-argocd-access-${APP_NAME}
+  namespace: openshift-gitops
+  labels:
+    app: pipeline
+rules:
+- apiGroups: ["argoproj.io"]
+  resources: ["applications"]
+  verbs: ["get", "list", "watch", "update", "patch", "sync"]
+- apiGroups: ["argoproj.io"]
+  resources: ["appprojects"]
+  verbs: ["get", "list", "watch"]
+EOF
+
+# Create cross-namespace RoleBinding
+echo "Creating cross-namespace RoleBinding..."
+cat << EOF | oc apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-argocd-access-${APP_NAME}
+  namespace: openshift-gitops
+  labels:
+    app: pipeline
+subjects:
+- kind: ServiceAccount
+  name: pipeline
+  namespace: ${NAMESPACE}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pipeline-argocd-access-${APP_NAME}
+EOF
+
+# Grant additional permissions to pipeline ServiceAccount
+echo "Configuring pipeline ServiceAccount permissions..."
+oc policy add-role-to-user edit system:serviceaccount:${NAMESPACE}:pipeline -n ${NAMESPACE}
+
+
+
+
+
 echo "Verifying setup..."
 
 # Function to check resource status

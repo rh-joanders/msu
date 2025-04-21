@@ -123,6 +123,18 @@ echo "=== Starting cleanup of environment: $APP_NAME ==="
 echo "Removing ArgoCD application..."
 delete_resource "application" "$APP_NAME" "$ARGOCD_NAMESPACE" "ArgoCD application"
 
+# Step 1.5: Clean up ArgoCD permissions
+
+echo "Removing manually created ArgoCD resources..."
+delete_resource "configmap" "argocd-config" "$APP_NAME" "ArgoCD ConfigMap"
+delete_resource "secret" "argocd-credentials" "$APP_NAME" "ArgoCD Secret"
+delete_resource "serviceaccount" "pipeline" "$APP_NAME" "Pipeline ServiceAccount"
+delete_resource "role" "pipeline-role" "$APP_NAME" "Pipeline Role"
+delete_resource "rolebinding" "pipeline-rolebinding" "$APP_NAME" "Pipeline RoleBinding"
+delete_resource "role" "pipeline-argocd-access-${APP_NAME}" "openshift-gitops" "Cross-namespace Role"
+delete_resource "rolebinding" "pipeline-argocd-access-${APP_NAME}" "openshift-gitops" "Cross-namespace RoleBinding"
+
+
 # Step 2: Delete the namespace (this will delete all resources in the namespace)
 echo "Removing namespace and all resources within it..."
 delete_resource "namespace" "$APP_NAME" "" "namespace"

@@ -10,6 +10,3 @@ spec:
   resources:
     requests:
       storage: 1Gi
-  # Use the storageClassName from environment variable, or default if not provided
-  # The placeholder will be replaced during deployment
-  storageClassName: ${MYSQL_STORAGE_CLASS}
