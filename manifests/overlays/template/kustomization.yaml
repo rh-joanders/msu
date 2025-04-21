@@ -41,7 +41,10 @@ patchesStrategicMerge:
             requests:
               memory: "${PHP_MEMORY_REQUEST}"
               cpu: "${PHP_CPU_REQUEST}"
-          # Environment variables are not overridden here
+          # Adding only the env vars that don't conflict with valueFrom
+          env:
+          - name: APP_ENV
+            value: "${APP_NAME}"
 
 - |-
   # Customize MySQL deployment
@@ -62,7 +65,20 @@ patchesStrategicMerge:
             requests:
               memory: "${MYSQL_MEMORY_REQUEST}"
               cpu: "${MYSQL_CPU_REQUEST}"
-          # Environment variables are not overridden here
+          # No env vars here to avoid conflicts with valueFrom
+
+# Create a replacement secret
+- |-
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: mysql-secret
+  type: Opaque
+  stringData:
+    username: "${MYSQL_USER}"
+    password: "${MYSQL_PASSWORD}"
+    database: "${MYSQL_DATABASE}"
+    root-password: "${MYSQL_ROOT_PASSWORD}"
 
 - |-
   # Customize PVC for MySQL if storage class is specified

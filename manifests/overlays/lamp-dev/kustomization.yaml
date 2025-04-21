@@ -41,15 +41,10 @@ patchesStrategicMerge:
             requests:
               memory: "128Mi"
               cpu: "100m"
+          # Adding only the env vars that don't conflict with valueFrom
           env:
           - name: APP_ENV
             value: "lamp-dev"
-          - name: MYSQL_DATABASE
-            value: "lamp_db"
-          - name: MYSQL_USER
-            value: "lamp_user"
-          - name: MYSQL_PASSWORD
-            value: "lamp_password"
 
 - |-
   # Customize MySQL deployment
@@ -70,15 +65,20 @@ patchesStrategicMerge:
             requests:
               memory: "256Mi"
               cpu: "250m"
-          env:
-          - name: MYSQL_ROOT_PASSWORD
-            value: "root_password"
-          - name: MYSQL_DATABASE
-            value: "lamp_db"
-          - name: MYSQL_USER
-            value: "lamp_user"
-          - name: MYSQL_PASSWORD
-            value: "lamp_password"
+          # No env vars here to avoid conflicts with valueFrom
+
+# Create a replacement secret
+- |-
+  apiVersion: v1
+  kind: Secret
+  metadata:
+    name: mysql-secret
+  type: Opaque
+  stringData:
+    username: "lamp_user"
+    password: "lamp_password"
+    database: "lamp_db"
+    root-password: "root_password"
 
 - |-
   # Customize PVC for MySQL if storage class is specified
