@@ -15,11 +15,16 @@ RUN yum -y update && yum -y install \
     php-pdo \
     && yum clean all
 
-# Configure Apache to use port 8080 and set proper document root
-RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
-    echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf && \
-    sed -i 's|DocumentRoot "/var/www/html"|DocumentRoot "/var/www/html/public"|g' /etc/httpd/conf/httpd.conf && \
-    sed -i 's|<Directory "/var/www/html">|<Directory "/var/www/html/public">|g' /etc/httpd/conf/httpd.conf
+# Create custom VirtualHost configuration to properly set DocumentRoot
+RUN echo '<VirtualHost *:8080>\n\
+    ServerName localhost\n\
+    DocumentRoot /var/www/html/public\n\
+    \n\
+    <Directory /var/www/html/public>\n\
+        AllowOverride All\n\
+        Require all granted\n\
+    </Directory>\n\
+</VirtualHost>' > /etc/httpd/conf.d/custom-vhost.conf
 
 # Set working directory
 WORKDIR /var/www/html
@@ -27,21 +32,11 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . /var/www/html/
 
-# Create public directory if it doesn't exist
-RUN mkdir -p /var/www/html/public && \
-    # If public directory is empty, copy index.php to it
-    if [ ! -f /var/www/html/public/index.php ]; then \
-        echo '<?php phpinfo(); ?>' > /var/www/html/public/index.php; \
-    fi
-
-# Create storage directories and set permissions
-RUN mkdir -p storage/logs storage/cache storage/app && \
-    chmod -R 777 storage && \
-    # Set proper permissions for Apache
-    chgrp -R 0 /var/www/html && \
+# Set proper permissions for Apache
+RUN chgrp -R 0 /var/www/html && \
     chmod -R g=u /var/www/html && \
-    # Fix SELinux contexts if needed
-    chcon -R -t httpd_sys_content_t /var/www/html || true
+    # Ensure httpd can write to storage directory
+    chmod -R 777 /var/www/html/storage
 
 # Switch back to non-root user
 USER 1001
