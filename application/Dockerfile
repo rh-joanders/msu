@@ -1,11 +1,10 @@
-# Use Red Hat Universal Base Image (UBI) with PHP 8.1
+# Updated Dockerfile with proper Apache configuration
 FROM registry.access.redhat.com/ubi9/php-81:latest
 
 # Switch to root for installation tasks
 USER 0
 
-# Install required packages using yum
-# Note: curl and zip extension are already included in the base image
+# Install required packages
 RUN yum -y update && yum -y install \
     zip \
     unzip \
@@ -19,25 +18,28 @@ RUN yum -y update && yum -y install \
 # Verify extensions are installed
 RUN php -m | grep -E 'zip|mysql|pdo'
 
-# Configure Apache to use port 8080 instead of 80 (OpenShift requirement)
-# This is likely already set in the UBI image, but ensuring it's configured
-RUN grep -q "Listen 8080" /etc/httpd/conf/httpd.conf || sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
-    # Add ServerName to suppress warning
+# Configure Apache to use port 8080 (OpenShift requirement)
+RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
     echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf
 
 # Set the Apache document root to public directory
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 
-# Update Apache configuration
+# Update Apache configuration - CRITICAL FIX HERE
 RUN mkdir -p ${APACHE_DOCUMENT_ROOT} && \
     sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
-    # Enable mod_rewrite for .htaccess support (should be enabled by default in UBI)
+    sed -ri -e 's!/etc/httpd/htdocs!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
+    # Enable mod_rewrite for .htaccess support
     grep -q "LoadModule rewrite_module" /etc/httpd/conf.modules.d/00-base.conf || \
     echo "LoadModule rewrite_module modules/mod_rewrite.so" >> /etc/httpd/conf.modules.d/00-base.conf && \
-    echo '<Directory "${APACHE_DOCUMENT_ROOT}">' >> /etc/httpd/conf/httpd.conf && \
-    echo '    AllowOverride All' >> /etc/httpd/conf/httpd.conf && \
-    echo '    Require all granted' >> /etc/httpd/conf/httpd.conf && \
-    echo '</Directory>' >> /etc/httpd/conf/httpd.conf
+    # Configure directory permissions
+    cat > /etc/httpd/conf.d/document-root.conf << EOF
+<Directory "${APACHE_DOCUMENT_ROOT}">
+    AllowOverride All
+    Require all granted
+    Options Indexes FollowSymLinks
+</Directory>
+EOF
 
 # Set working directory
 WORKDIR /var/www/html
@@ -65,6 +67,11 @@ RUN chgrp -R 0 /var/www/html && \
     chmod -R g=u /var/log/httpd && \
     chgrp -R 0 /run/httpd && \
     chmod -R g=u /run/httpd
+
+# Create a simple index.php in the public directory if it doesn't exist
+RUN if [ ! -f "${APACHE_DOCUMENT_ROOT}/index.php" ]; then \
+    echo '<?php echo "LAMP Application is running. If you see this page, Apache is correctly configured."; ?>' > ${APACHE_DOCUMENT_ROOT}/index.php; \
+    fi
 
 # Switch back to non-root user (UBI default is 1001)
 USER 1001

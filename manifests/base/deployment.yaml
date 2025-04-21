@@ -1,4 +1,4 @@
-# manifests/base/deployment.yaml
+# Updated deployment.yaml with improved readiness probe
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -6,7 +6,7 @@ metadata:
   labels:
     app: lamp-app
 spec:
-  replicas: 1  # Default replica count, can be overridden in overlays
+  replicas: 1
   selector:
     matchLabels:
       app: lamp-app
@@ -17,14 +17,14 @@ spec:
     spec:
       containers:
       - name: lamp-app
-        image: lamp-app:latest  # Will be updated by pipeline
+        image: lamp-app:latest
         ports:
         - containerPort: 8080
           name: http
         # Environment variables for MySQL connection
         env:
         - name: MYSQL_SERVICE_HOST
-          value: mysql  # Points to the MySQL service in the same namespace
+          value: mysql
         - name: MYSQL_USER
           valueFrom:
             secretKeyRef:
@@ -40,7 +40,7 @@ spec:
             secretKeyRef:
               name: mysql-secret
               key: database
-        # Resource requests and limits for the container
+        # Resource requests and limits
         resources:
           limits:
             memory: "256Mi"
@@ -48,16 +48,27 @@ spec:
           requests:
             memory: "128Mi"
             cpu: "100m"
-        # Basic liveness and readiness probes
+        # Updated health checks
         livenessProbe:
           httpGet:
-            path: /
+            path: /index.php
             port: 8080
           initialDelaySeconds: 30
-          periodSeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /
+            path: /index.php
             port: 8080
-          initialDelaySeconds: 5
-          periodSeconds: 5
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+          failureThreshold: 3
+        # Add a startup probe for initial boot
+        startupProbe:
+          httpGet:
+            path: /index.php
+            port: 8080
+          failureThreshold: 30
+          periodSeconds: 10
