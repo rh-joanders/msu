@@ -12,7 +12,7 @@ namespace: lamp-dev
 images:
 - name: lamp-app
   newName: image-registry.openshift-image-registry.svc:5000/lamp-dev/lamp-app
-  newTag: dev
+  newTag: main
 
 # Set common labels for all resources
 commonLabels:
@@ -86,6 +86,6 @@ configMapGenerator:
 - name: lamp-dev-config
   literals:
   - GIT_REPOSITORY_URL=https://github.com/rh-joanders/msu.git
-  - GIT_BRANCH=dev
+  - GIT_BRANCH=main
   - APP_NAME=lamp-dev
   - INIT_DATABASE=yes
