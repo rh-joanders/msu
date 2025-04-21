@@ -60,98 +60,21 @@ fi
 cp -r "$TEMPLATE_DIR"/* "$OVERLAY_DIR"/
 echo "Copied template files to overlay directory"
 
-# Load environment variables from deployment.env if it exists
-if [ -f "deployment.env" ]; then
-  echo "Loading environment variables from deployment.env..."
-  while IFS= read -r line || [ -n "$line" ]; do
-    # Skip empty lines and comments
-    if [[ -z "$line" || "$line" =~ ^# ]]; then
-      continue
-    fi
-    
-    # Extract variable name and value
-    if [[ "$line" =~ ^([^=]+)=(.*)$ ]]; then
-      var_name="${BASH_REMATCH[1]}"
-      var_value="${BASH_REMATCH[2]}"
-      
-      # Remove leading/trailing whitespace
-      var_name=$(echo "$var_name" | xargs)
-      var_value=$(echo "$var_value" | xargs)
-      
-      # Export the variable
-      export "$var_name"="$var_value"
-    fi
-  done < "deployment.env"
-else
-  echo "Warning: deployment.env file not found. Using defaults."
-fi
+# Export variables for envsubst
+export APP_NAME
+export GIT_BRANCH
 
-# Set default values for variables not defined in deployment.env
-export ARGOCD_NAMESPACE=${ARGOCD_NAMESPACE:-"openshift-gitops"}
-export IMAGE_TAG_LATEST=${IMAGE_TAG_LATEST:-"yes"}
-export TRIGGER_PIPELINE=${TRIGGER_PIPELINE:-"no"}
-export MYSQL_MEMORY_LIMIT=${MYSQL_MEMORY_LIMIT:-"512Mi"}
-export MYSQL_CPU_LIMIT=${MYSQL_CPU_LIMIT:-"500m"}
-export PHP_MEMORY_LIMIT=${PHP_MEMORY_LIMIT:-"256Mi"}
-export PHP_CPU_LIMIT=${PHP_CPU_LIMIT:-"200m"}
-export MYSQL_DATABASE=${MYSQL_DATABASE:-"lamp_db"}
-export MYSQL_USER=${MYSQL_USER:-"lamp_user"}
-export MYSQL_PASSWORD=${MYSQL_PASSWORD:-"lamp_password"}
-export MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-"root_password"}
-export INIT_DATABASE=${INIT_DATABASE:-"yes"}
-export PHP_REPLICAS=${PHP_REPLICAS:-"1"}
-export MYSQL_REPLICAS=${MYSQL_REPLICAS:-"1"}
-export GIT_REPOSITORY_URL=${GIT_REPOSITORY_URL:-"https://github.com/YOUR_USERNAME/openshift-lamp-gitops.git"}
-
-# Function to perform sed replacements based on OS
-perform_sed() {
-  local file=$1
-  local pattern=$2
-  local replacement=$3
-  
-  if [[ $(uname) == "Darwin" ]]; then
-    # macOS requires -i '' for in-place editing
-    sed -i '' "s#${pattern}#${replacement}#g" "$file"
-  else
-    # Linux version
-    sed -i "s#${pattern}#${replacement}#g" "$file"
-  fi
-}
-
-# Replace placeholder variables in all files in the overlay
+# Replace placeholder variables in the overlay using envsubst
+echo "Substituting variables in overlay files..."
 find "$OVERLAY_DIR" -type f | while read -r file; do
-  # Core variables
-  perform_sed "$file" '\${APP_NAME}' "$APP_NAME"
-  perform_sed "$file" '\${GIT_BRANCH}' "$GIT_BRANCH"
-  perform_sed "$file" '\${GIT_REPOSITORY_URL}' "$GIT_REPOSITORY_URL"
+  # Create a temporary file for the substitution
+  temp_file=$(mktemp)
   
-  # ArgoCD configuration
-  perform_sed "$file" '\${ARGOCD_NAMESPACE}' "$ARGOCD_NAMESPACE"
+  # Use envsubst to substitute variables
+  envsubst < "$file" > "$temp_file"
   
-  # Image configuration
-  perform_sed "$file" '\${IMAGE_TAG_LATEST}' "$IMAGE_TAG_LATEST"
-  
-  # Pipeline configuration
-  perform_sed "$file" '\${TRIGGER_PIPELINE}' "$TRIGGER_PIPELINE"
-  
-  # MySQL resource limits
-  perform_sed "$file" '\${MYSQL_MEMORY_LIMIT}' "$MYSQL_MEMORY_LIMIT"
-  perform_sed "$file" '\${MYSQL_CPU_LIMIT}' "$MYSQL_CPU_LIMIT"
-  
-  # PHP resource limits
-  perform_sed "$file" '\${PHP_MEMORY_LIMIT}' "$PHP_MEMORY_LIMIT"
-  perform_sed "$file" '\${PHP_CPU_LIMIT}' "$PHP_CPU_LIMIT"
-  
-  # Database configuration
-  perform_sed "$file" '\${MYSQL_DATABASE}' "$MYSQL_DATABASE"
-  perform_sed "$file" '\${MYSQL_USER}' "$MYSQL_USER"
-  perform_sed "$file" '\${MYSQL_PASSWORD}' "$MYSQL_PASSWORD"
-  perform_sed "$file" '\${MYSQL_ROOT_PASSWORD}' "$MYSQL_ROOT_PASSWORD"
-  
-  # Application configuration
-  perform_sed "$file" '\${INIT_DATABASE}' "$INIT_DATABASE"
-  perform_sed "$file" '\${PHP_REPLICAS}' "$PHP_REPLICAS"
-  perform_sed "$file" '\${MYSQL_REPLICAS}' "$MYSQL_REPLICAS"
+  # Move the temporary file back to replace the original
+  mv "$temp_file" "$file"
 done
 
 echo "Updated placeholder variables in overlay files"
