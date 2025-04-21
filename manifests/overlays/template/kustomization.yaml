@@ -5,9 +5,6 @@ kind: Kustomization
 bases:
 - ../../base
 
-# Variables to be replaced by the deployment script
-# APP_NAME will be used for the namespace and all resource names
-
 # Set the namespace for all resources
 namespace: ${APP_NAME}
 
@@ -17,32 +14,86 @@ images:
   newName: image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app
   newTag: ${GIT_BRANCH}
 
-# Apply patches to the base resources
+# Set common labels for all resources
+commonLabels:
+  app.kubernetes.io/part-of: ${APP_NAME}
+  app.kubernetes.io/managed-by: argocd
+  app.kubernetes.io/environment: ${APP_NAME}
+
+# Apply patches to customize resources
 patchesStrategicMerge:
 - |-
-  # Patch to customize environment settings
+  # Customize PHP deployment
   apiVersion: apps/v1
   kind: Deployment
   metadata:
     name: lamp-app
   spec:
-    replicas: 1
+    replicas: ${PHP_REPLICAS}
     template:
       spec:
         containers:
         - name: lamp-app
           resources:
             limits:
-              memory: "256Mi"
-              cpu: "200m"
+              memory: "${PHP_MEMORY_LIMIT}"
+              cpu: "${PHP_CPU_LIMIT}"
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "$((($PHP_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
+              cpu: "$((($PHP_CPU_LIMIT | from_string | to_number) / 2))m"
           env:
           - name: APP_ENV
             value: "${APP_NAME}"
+          - name: MYSQL_DATABASE
+            value: "${MYSQL_DATABASE}"
+          - name: MYSQL_USER
+            value: "${MYSQL_USER}"
+          - name: MYSQL_PASSWORD
+            value: "${MYSQL_PASSWORD}"
 
-# Add common labels to all resources
-commonLabels:
-  app.kubernetes.io/part-of: ${APP_NAME}
-  app.kubernetes.io/managed-by: argocd
+- |-
+  # Customize MySQL deployment
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: mysql
+  spec:
+    replicas: ${MYSQL_REPLICAS}
+    template:
+      spec:
+        containers:
+        - name: mysql
+          resources:
+            limits:
+              memory: "${MYSQL_MEMORY_LIMIT}"
+              cpu: "${MYSQL_CPU_LIMIT}"
+            requests:
+              memory: "$((($MYSQL_MEMORY_LIMIT | from_string | to_number) / 2))Mi"
+              cpu: "$((($MYSQL_CPU_LIMIT | from_string | to_number) / 2))m"
+          env:
+          - name: MYSQL_ROOT_PASSWORD
+            value: "${MYSQL_ROOT_PASSWORD}"
+          - name: MYSQL_DATABASE
+            value: "${MYSQL_DATABASE}"
+          - name: MYSQL_USER
+            value: "${MYSQL_USER}"
+          - name: MYSQL_PASSWORD
+            value: "${MYSQL_PASSWORD}"
+
+- |-
+  # Customize PVC for MySQL if storage class is specified
+  apiVersion: v1
+  kind: PersistentVolumeClaim
+  metadata:
+    name: mysql-pvc
+  spec:
+    storageClassName: "${MYSQL_STORAGE_CLASS}"
+
+# Add ConfigMap with application configuration
+configMapGenerator:
+- name: ${APP_NAME}-config
+  literals:
+  - GIT_REPOSITORY_URL=${GIT_REPOSITORY_URL}
+  - GIT_BRANCH=${GIT_BRANCH}
+  - APP_NAME=${APP_NAME}
+  - INIT_DATABASE=${INIT_DATABASE}
