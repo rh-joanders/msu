@@ -18,23 +18,23 @@ RUN dnf -y update && dnf -y install \
 # - Add ServerName to avoid warnings
 # - Configure document root to be /var/www/html/public
 RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
-    echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf && \
+#    echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf && \
     mkdir -p /var/www/html/public
 
 # Create a simple VirtualHost configuration for port 8080
-RUN echo '<VirtualHost *:8080>' > /etc/httpd/conf.d/000-default.conf && \
-    echo '    DocumentRoot /var/www/html/public' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '    <Directory /var/www/html/public>' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '        AllowOverride All' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '        Require all granted' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '        Options Indexes FollowSymLinks' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '    </Directory>' >> /etc/httpd/conf.d/000-default.conf && \
-    echo '</VirtualHost>' >> /etc/httpd/conf.d/000-default.conf
+#RUN echo '<VirtualHost *:8080>' > /etc/httpd/conf.d/000-default.conf && \
+#    echo '    DocumentRoot /var/www/html/public' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '    <Directory /var/www/html/public>' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '        AllowOverride All' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '        Require all granted' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '        Options Indexes FollowSymLinks' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '    </Directory>' >> /etc/httpd/conf.d/000-default.conf && \
+#    echo '</VirtualHost>' >> /etc/httpd/conf.d/000-default.conf
 
 # Remove or disable SSL configuration to avoid warnings
-RUN if [ -f "/etc/httpd/conf.d/ssl.conf" ]; then \
-    mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.disabled; \
-    fi
+#RUN if [ -f "/etc/httpd/conf.d/ssl.conf" ]; then \
+#    mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.disabled; \
+#    fi
 
 # Copy application files
 COPY . /var/www/html/
@@ -63,18 +63,18 @@ COPY . /var/www/html/
 #    fi
 
 # Create storage directories if they don't exist
-RUN mkdir -p /var/www/html/storage/logs /var/www/html/storage/cache /var/www/html/storage/app && \
-    chmod -R 777 /var/www/html/storage
+#RUN mkdir -p /var/www/html/storage/logs /var/www/html/storage/cache /var/www/html/storage/app && \
+#    chmod -R 777 /var/www/html/storage
 
 # Set appropriate permissions for OpenShift
-RUN chgrp -R 0 /var/www/html && \
-    chmod -R g=u /var/www/html && \
-    chmod -R 777 /var/www/html/storage && \
-    # Ensure logs are writable
-    chgrp -R 0 /var/log/httpd && \
-    chmod -R g=u /var/log/httpd && \
-    chgrp -R 0 /run/httpd && \
-    chmod -R g=u /run/httpd
+#RUN chgrp -R 0 /var/www/html && \
+#    chmod -R g=u /var/www/html && \
+#    chmod -R 777 /var/www/html/storage && \
+#    # Ensure logs are writable
+#    chgrp -R 0 /var/log/httpd && \
+#    chmod -R g=u /var/log/httpd && \
+#    chgrp -R 0 /run/httpd && \
+#    chmod -R g=u /run/httpd
 
 # Switch back to non-root user for security
 USER 1001
