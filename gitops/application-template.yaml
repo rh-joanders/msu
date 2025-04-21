@@ -12,11 +12,10 @@ spec:
     repoURL: ${GIT_REPOSITORY_URL}
     targetRevision: ${GIT_BRANCH}
     path: manifests/overlays/${APP_NAME}
-    # Enable directory-based kustomization to support variable substitution
+    # Fixed kustomize section
     kustomize:
-      namePrefix: ""
       images:
-        - image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app:${GIT_BRANCH}
+        - "image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app:${GIT_BRANCH}"
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: ${APP_NAME}
