@@ -1,23 +1,33 @@
 # Use Red Hat Universal Base Image (UBI) with PHP 8.1
 FROM registry.access.redhat.com/ubi9/php-81:latest
 
-# Install MySQL extensions
+# Install MySQL extensions (already included in the image, but added for clarity)
 USER 0
-RUN yum -y install php-mysqlnd php-pdo && yum clean all
+RUN dnf -y install php-mysqlnd php-pdo && dnf clean all
 
-# The UBI PHP image expects content in /opt/app-root/src
-# But we need to handle the /public subdirectory pattern
+# Set Apache configurations to properly find and serve application files
+RUN mkdir -p /var/www/html && \
+    # Add our specific DocumentRoot configuration
+    echo 'DocumentRoot "/var/www/html"' > /etc/httpd/conf.d/documentroot.conf && \
+    # Add index.php to DirectoryIndex directive
+    echo 'DirectoryIndex index.php index.html' > /etc/httpd/conf.d/php_index.conf && \
+    # Ensure /var/www/html directory has proper permissions
+    chmod -R a+rwx /var/www/html && \
+    # Make sure application user can read/write to the directory
+    chown -R 1001:0 /var/www/html
 
-# Copy application files (as the default user)
+# Copy application files into the document root
+COPY --chown=1001:0 . /var/www/html/
+
+# Make storage directory writable
+RUN chmod -R 777 /var/www/html/storage && \
+    # Ensure correct permissions
+    chown -R 1001:0 /var/www/html
+
+# Switch back to non-root user
 USER 1001
-COPY --chown=1001:0 . /opt/app-root/src/
 
-# Create an index.php in the root that includes the actual index.php from public
-RUN echo '<?php include "public/index.php"; ?>' > /opt/app-root/src/index.php && \
-    # Make storage writable
-    chmod -R 777 /opt/app-root/src/storage
-
-# Apache is already configured to listen on 8080 in the base image
+# Expose the web port
 EXPOSE 8080
 
 # Start Apache
