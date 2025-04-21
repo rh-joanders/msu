@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: ${GIT_REPOSITORY_URL}
-    targetRevision: ${GIT_BRANCH}
+    targetRevision: HEAD
     path: manifests/overlays/${APP_NAME}
     # Fixed kustomize section
     kustomize:
