@@ -15,7 +15,7 @@ spec:
     # Fixed kustomize section
     kustomize:
       images:
-        - "image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app:${IMAGE_TAG}"
+        - "image-registry.openshift-image-registry.svc:5000/${APP_NAME}/lamp-app:dev"
   destination:
     server: 'https://kubernetes.default.svc'
     namespace: ${APP_NAME}
