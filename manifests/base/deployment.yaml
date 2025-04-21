@@ -68,7 +68,7 @@ spec:
         # Add a startup probe for initial boot
         startupProbe:
           httpGet:
-            path: /index.php
+            path: /
             port: 8080
           failureThreshold: 30
           periodSeconds: 10
