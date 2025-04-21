@@ -12,5 +12,3 @@ resources:
 - mysql-pvc.yaml
 - mysql-secret.yaml
 - git-repo-config.yaml
-- argocd-config.yaml
-- argocd-secret.yaml
