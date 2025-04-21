@@ -11,10 +11,6 @@ spec:
         namespace: lamp-dev
         path: manifests/overlays/lamp-dev
         branch: main
-      - name: lamp-prod
-        namespace: lamp-prod
-        path: manifests/overlays/lamp-prod
-        branch: prod
   template:
     metadata:
       name: '{{name}}'
