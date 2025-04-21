@@ -10,7 +10,7 @@ spec:
       - name: lamp-dev
         namespace: lamp-dev
         path: manifests/overlays/lamp-dev
-        branch: main
+        branch: dev
   template:
     metadata:
       name: '{{name}}'
