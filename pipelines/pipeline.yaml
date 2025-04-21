@@ -7,7 +7,7 @@ spec:
     This pipeline clones the LAMP application repository, builds the container image,
     updates the Kubernetes manifests, and triggers ArgoCD to sync the application.
   workspaces:
-  - name: shared-workspace  # Workspace for sharing data between tasks
+  - name: shared-workspace
   params:
   - name: git-url
     type: string
@@ -31,12 +31,11 @@ spec:
   - name: deployment-path
     type: string
     description: Path to the kustomization.yaml file to update
-    default: "manifests/overlays/lamp-dev/kustomization.yaml"  # Providing a default
+    default: "manifests/overlays/lamp-dev/kustomization.yaml"
   - name: app-name
     type: string
     description: Name of the ArgoCD application to sync
   tasks:
-  # Task 1: Clone the git repository
   - name: fetch-repository
     taskRef:
       params:
@@ -60,7 +59,6 @@ spec:
     - name: deleteExisting
       value: "true"
 
-  # Task 2: Build and push the container image
   - name: build-image
     taskRef:
       params:
@@ -86,7 +84,6 @@ spec:
     - name: ADDITIONAL_TAGS
       value: $(params.add-latest-tag)
 
-  # Task 3: Update the deployment manifests with the new image
   - name: update-manifests
     taskRef:
       name: update-deployment
@@ -101,10 +98,9 @@ spec:
       value: $(params.image-name)
     - name: image-tag
       value: $(params.image-tag)
-    - name: DEPLOYMENT_PATH
+    - name: deployment-path    # Match the parameter name in the task
       value: $(params.deployment-path)
 
-  # Task 4: Trigger ArgoCD to sync the application
   - name: sync-application
     taskRef:
       name: argocd-task-sync-and-wait

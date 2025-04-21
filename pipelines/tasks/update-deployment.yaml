@@ -17,7 +17,7 @@ spec:
   - name: deployment-path
     type: string
     description: Path to the kustomization.yaml file to update
-    default: "manifests/overlays/lamp-dev/kustomization.yaml"  # Providing a default
+    default: "manifests/overlays/lamp-dev/kustomization.yaml"
   steps:
   - name: update-yaml
     image: quay.io/openshift/origin-cli:latest
