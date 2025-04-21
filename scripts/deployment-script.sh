@@ -1,3 +1,6 @@
+#!/bin/bash
+# Deployment script for OpenShift LAMP GitOps
+
 # Enable exit on error and command tracing for better debugging
 set -e
 # Uncomment the following line when debugging
@@ -52,6 +55,7 @@ echo "Git Repository: $GIT_REPOSITORY_URL"
 echo "Git Branch: $GIT_BRANCH"
 echo "Application Name/Namespace: $APP_NAME"
 echo "ArgoCD Namespace: $ARGOCD_NAMESPACE"
+echo "Image Tag: $IMAGE_TAG"
 
 # Function to check if a resource exists
 resource_exists() {
@@ -128,7 +132,27 @@ oc apply -f pipelines/pipeline.yaml -n "$NAMESPACE"
 
 # Step 8: Apply ArgoCD application definition from file
 echo "Setting up ArgoCD application..."
+# Make sure all environment variables are properly exported
+export APP_NAME
+export NAMESPACE
+export GIT_REPOSITORY_URL
+export GIT_BRANCH
+export IMAGE_TAG
+export ARGOCD_NAMESPACE
+
+# Use envsubst to substitute all variables in the template
 envsubst < gitops/application-template.yaml | oc apply -f -
+
+# Verify that the correct branch is set in the ArgoCD application
+echo "Verifying application configuration..."
+sleep 5  # Give the API server a moment to process the application
+ACTUAL_REVISION=$(oc get application ${APP_NAME} -n ${ARGOCD_NAMESPACE} -o jsonpath='{.spec.source.targetRevision}' 2>/dev/null || echo "")
+echo "Application ${APP_NAME} set to sync from branch: ${ACTUAL_REVISION}"
+if [ "${ACTUAL_REVISION}" != "${GIT_BRANCH}" ]; then
+  echo "Warning: Expected branch ${GIT_BRANCH} but got ${ACTUAL_REVISION}"
+  echo "Patching application to use correct branch..."
+  oc patch application ${APP_NAME} -n ${ARGOCD_NAMESPACE} --type=merge -p "{\"spec\":{\"source\":{\"targetRevision\":\"${GIT_BRANCH}\"}}}"
+fi
 
 echo "Waiting for ArgoCD controller to process the application (10s)..."
 sleep 10
@@ -219,3 +243,7 @@ echo ""
 echo "ArgoCD console is available at:"
 ARGOCD_ROUTE=$(oc get route openshift-gitops-server -n "$ARGOCD_NAMESPACE" --template='{{.spec.host}}' 2>/dev/null || echo "<pending>")
 echo "  https://${ARGOCD_ROUTE}"
+echo ""
+echo "ArgoCD application branch setting:"
+FINAL_REVISION=$(oc get application ${APP_NAME} -n ${ARGOCD_NAMESPACE} -o jsonpath='{.spec.source.targetRevision}' 2>/dev/null || echo "<unknown>")
+echo "  Branch: ${FINAL_REVISION}"
