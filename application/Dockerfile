@@ -1,86 +1,76 @@
-# Base image with PHP 8.1 on UBI 9
+# Use Red Hat Universal Base Image (UBI) with PHP 8.1
 FROM registry.access.redhat.com/ubi9/php-81:latest
 
-# Switch to root for installation and configuration
+# Switch to root for installation tasks
 USER 0
 
-# Install required packages in a single layer
-RUN dnf -y update && dnf -y install \
-    php-mysqlnd \
-    php-pdo \
+# Install required packages using yum
+# Note: curl and zip extension are already included in the base image
+RUN yum -y update && yum -y install \
     zip \
     unzip \
     git \
-    && dnf clean all
+    libzip \
+    libzip-devel \
+    php-mysqlnd \
+    php-pdo \
+    && yum clean all
 
-# Configure Apache for OpenShift
-# - Set port to 8080
-# - Add ServerName to avoid warnings
-# - Configure document root to be /var/www/html/public
-RUN sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
-#    echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf && \
-    mkdir -p /var/www/html/public
+# Verify extensions are installed
+RUN php -m | grep -E 'zip|mysql|pdo'
 
-# Create a simple VirtualHost configuration for port 8080
-#RUN echo '<VirtualHost *:8080>' > /etc/httpd/conf.d/000-default.conf && \
-#    echo '    DocumentRoot /var/www/html/public' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '    <Directory /var/www/html/public>' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '        AllowOverride All' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '        Require all granted' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '        Options Indexes FollowSymLinks' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '    </Directory>' >> /etc/httpd/conf.d/000-default.conf && \
-#    echo '</VirtualHost>' >> /etc/httpd/conf.d/000-default.conf
+# Configure Apache to use port 8080 instead of 80 (OpenShift requirement)
+# This is likely already set in the UBI image, but ensuring it's configured
+RUN grep -q "Listen 8080" /etc/httpd/conf/httpd.conf || sed -i 's/Listen 80/Listen 8080/g' /etc/httpd/conf/httpd.conf && \
+    # Add ServerName to suppress warning
+    echo "ServerName localhost" >> /etc/httpd/conf/httpd.conf
 
-# Remove or disable SSL configuration to avoid warnings
-#RUN if [ -f "/etc/httpd/conf.d/ssl.conf" ]; then \
-#    mv /etc/httpd/conf.d/ssl.conf /etc/httpd/conf.d/ssl.conf.disabled; \
-#    fi
+# Set the Apache document root to public directory
+ENV APACHE_DOCUMENT_ROOT /var/www/html/public
+
+# Update Apache configuration
+RUN mkdir -p ${APACHE_DOCUMENT_ROOT} && \
+    sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/httpd/conf/httpd.conf && \
+    # Enable mod_rewrite for .htaccess support (should be enabled by default in UBI)
+    grep -q "LoadModule rewrite_module" /etc/httpd/conf.modules.d/00-base.conf || \
+    echo "LoadModule rewrite_module modules/mod_rewrite.so" >> /etc/httpd/conf.modules.d/00-base.conf && \
+    echo '<Directory "${APACHE_DOCUMENT_ROOT}">' >> /etc/httpd/conf/httpd.conf && \
+    echo '    AllowOverride All' >> /etc/httpd/conf/httpd.conf && \
+    echo '    Require all granted' >> /etc/httpd/conf/httpd.conf && \
+    echo '</Directory>' >> /etc/httpd/conf/httpd.conf
+
+# Set working directory
+WORKDIR /var/www/html
 
 # Copy application files
 COPY . /var/www/html/
 
-# Create a test index file if one doesn't exist
-#RUN if [ ! -f "/var/www/html/public/index.php" ]; then \
-#    echo '<?php' > /var/www/html/public/index.php && \
-#    echo 'echo "<h1>LAMP Stack on OpenShift</h1>";' >> /var/www/html/public/index.php && \
-#    echo 'echo "<p>Your PHP version is: " . phpversion() . "</p>";' >> /var/www/html/public/index.php && \
-#    echo 'echo "<h2>Database Connection Test:</h2>";' >> /var/www/html/public/index.php && \
-#    echo 'try {' >> /var/www/html/public/index.php && \
-#    echo '    $host = getenv("MYSQL_SERVICE_HOST") ?: "mysql";' >> /var/www/html/public/index.php && \
-#    echo '    $user = getenv("MYSQL_USER") ?: "lamp_user";' >> /var/www/html/public/index.php && \
-#    echo '    $pass = getenv("MYSQL_PASSWORD") ?: "lamp_password";' >> /var/www/html/public/index.php && \
-#    echo '    $dbname = getenv("MYSQL_DATABASE") ?: "lamp_db";' >> /var/www/html/public/index.php && \
-#    echo '    $conn = new PDO("mysql:host=$host;dbname=$dbname", $user, $pass);' >> /var/www/html/public/index.php && \
-#    echo '    $conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);' >> /var/www/html/public/index.php && \
-#    echo '    echo "<p style=\"color:green\">Connected successfully to MySQL!</p>";' >> /var/www/html/public/index.php && \
-#    echo '    $stmt = $conn->query("SELECT VERSION() as version");' >> /var/www/html/public/index.php && \
-#    echo '    $row = $stmt->fetch(PDO::FETCH_ASSOC);' >> /var/www/html/public/index.php && \
-#    echo '    echo "<p>MySQL Version: " . $row["version"] . "</p>";' >> /var/www/html/public/index.php && \
-#    echo '} catch(PDOException $e) {' >> /var/www/html/public/index.php && \
-#    echo '    echo "<p style=\"color:red\">Connection failed: " . $e->getMessage() . "</p>";' >> /var/www/html/public/index.php && \
-#    echo '}' >> /var/www/html/public/index.php && \
-#    echo '?>' >> /var/www/html/public/index.php; \
-#    fi
+# Install Composer (if not already installed)
+RUN if ! command -v composer &> /dev/null; then \
+    curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer; \
+    fi
 
-# Create storage directories if they don't exist
-#RUN mkdir -p /var/www/html/storage/logs /var/www/html/storage/cache /var/www/html/storage/app && \
-#    chmod -R 777 /var/www/html/storage
+# Install dependencies with Composer if composer.json exists
+RUN if [ -f "composer.json" ]; then composer install --no-dev --optimize-autoloader; fi
 
-# Set appropriate permissions for OpenShift
-#RUN chgrp -R 0 /var/www/html && \
-#    chmod -R g=u /var/www/html && \
-#    chmod -R 777 /var/www/html/storage && \
-#    # Ensure logs are writable
-#    chgrp -R 0 /var/log/httpd && \
-#    chmod -R g=u /var/log/httpd && \
-#    chgrp -R 0 /run/httpd && \
-#    chmod -R g=u /run/httpd
+# Create storage directories and set permissions
+RUN mkdir -p storage/logs storage/cache storage/app && \
+    chmod -R 777 storage
 
-# Switch back to non-root user for security
+# OpenShift specific security - prepare for running as non-root
+RUN chgrp -R 0 /var/www/html && \
+    chmod -R g=u /var/www/html && \
+    # Adjust for UBI9 directory structure
+    chgrp -R 0 /var/log/httpd && \
+    chmod -R g=u /var/log/httpd && \
+    chgrp -R 0 /run/httpd && \
+    chmod -R g=u /run/httpd
+
+# Switch back to non-root user (UBI default is 1001)
 USER 1001
 
 # Expose port 8080
 EXPOSE 8080
 
-# Start Apache
+# Start Apache server in the foreground
 CMD ["httpd", "-D", "FOREGROUND"]
