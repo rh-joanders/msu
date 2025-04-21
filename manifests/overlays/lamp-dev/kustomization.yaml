@@ -12,7 +12,7 @@ namespace: lamp-dev
 images:
 - name: lamp-app
   newName: image-registry.openshift-image-registry.svc:5000/lamp-dev/lamp-app
-  newTag: main
+  newTag: dev
 
 # Set common labels for all resources
 commonLabels:
