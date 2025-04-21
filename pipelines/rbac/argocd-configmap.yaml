@@ -9,6 +9,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: Prune=false
 data:
-  argocd-server: "${ARGOCD_SERVER}"
+  ARGOCD_SERVER: "${ARGOCD_SERVER}"
   argocd-namespace: "openshift-gitops"
   flags: "--insecure --grpc-web"
+  ARGOCD_APPLICATION_REVISION: "main"

@@ -7,11 +7,21 @@ spec:
     This pipeline clones the LAMP application repository, builds the container image,
     updates the Kubernetes manifests, and triggers ArgoCD to sync the application.
   workspaces:
-  - name: shared-workspace
+    - name: shared-workspace
+      volumeClaimTemplate:
+        metadata:
+          creationTimestamp: null
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
   params:
   - name: git-url
     type: string
     description: URL of the git repo
+    default: https://github.com/rh-joanders/msu.git
   - name: git-revision
     type: string
     description: Git revision to build
