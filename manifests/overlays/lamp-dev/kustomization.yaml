@@ -39,8 +39,8 @@ patchesStrategicMerge:
               memory: "256Mi"
               cpu: "200m"
             requests:
-              memory: "$(((256Mi | from_string | to_number) / 2))Mi"
-              cpu: "$(((200m | from_string | to_number) / 2))m"
+              memory: "128Mi"
+              cpu: "100m"
           env:
           - name: APP_ENV
             value: "lamp-dev"
@@ -68,8 +68,8 @@ patchesStrategicMerge:
               memory: "512Mi"
               cpu: "500m"
             requests:
-              memory: "$(((512Mi | from_string | to_number) / 2))Mi"
-              cpu: "$(((500m | from_string | to_number) / 2))m"
+              memory: "256Mi"
+              cpu: "250m"
           env:
           - name: MYSQL_ROOT_PASSWORD
             value: "root_password"
