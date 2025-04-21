@@ -15,26 +15,18 @@ RUN yum -y update && yum -y install \
     php-pdo \
     && yum clean all
 
-# Create custom VirtualHost configuration to properly set DocumentRoot
-RUN echo '<VirtualHost *:8080>\n\
-    ServerName localhost\n\
-    DocumentRoot /var/www/html/public\n\
-    \n\
-    <Directory /var/www/html/public>\n\
-        AllowOverride All\n\
-        Require all granted\n\
-    </Directory>\n\
-</VirtualHost>' > /etc/httpd/conf.d/custom-vhost.conf
-
 # Set working directory
 WORKDIR /var/www/html
 
 # Copy application files
 COPY . /var/www/html/
 
-# Set proper permissions for Apache
-RUN chgrp -R 0 /var/www/html && \
-    chmod -R g=u /var/www/html && \
+# Create the default DocumentRoot and link our application files
+RUN mkdir -p /etc/httpd/htdocs && \
+    ln -sf /var/www/html/public/* /etc/httpd/htdocs/ && \
+    # Set proper permissions
+    chgrp -R 0 /var/www/html /etc/httpd/htdocs && \
+    chmod -R g=u /var/www/html /etc/httpd/htdocs && \
     # Ensure httpd can write to storage directory
     chmod -R 777 /var/www/html/storage
 
