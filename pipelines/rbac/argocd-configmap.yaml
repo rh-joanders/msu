@@ -12,4 +12,4 @@ data:
   ARGOCD_SERVER: "${ARGOCD_SERVER}"
   argocd-namespace: "openshift-gitops"
   flags: "--insecure --grpc-web"
-  ARGOCD_APPLICATION_REVISION: "main"
+  ARGOCD_APPLICATION_REVISION: "HEAD"

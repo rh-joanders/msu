@@ -6,19 +6,19 @@ bases:
 - ../../base
 
 # Set the namespace for all resources
-namespace: lamp-dev
+namespace: lamp-main
 
 # Define images to replace
 images:
 - name: lamp-app
-  newName: image-registry.openshift-image-registry.svc:5000/lamp-dev/lamp-app
+  newName: image-registry.openshift-image-registry.svc:5000/lamp-main/lamp-app
   newTag: main
 
 # Set common labels for all resources
 commonLabels:
-  app.kubernetes.io/part-of: lamp-dev
+  app.kubernetes.io/part-of: lamp-main
   app.kubernetes.io/managed-by: argocd
-  app.kubernetes.io/environment: lamp-dev
+  app.kubernetes.io/environment: lamp-main
 
 # Apply patches to customize resources
 patchesStrategicMerge:
@@ -44,7 +44,7 @@ patchesStrategicMerge:
           # Adding only the env vars that don't conflict with valueFrom
           env:
           - name: APP_ENV
-            value: "lamp-dev"
+            value: "lamp-main"
 
 - |-
   # Customize MySQL deployment
@@ -83,9 +83,9 @@ patchesStrategicMerge:
 
 # Add ConfigMap with application configuration
 configMapGenerator:
-- name: lamp-dev-config
+- name: lamp-main-config
   literals:
   - GIT_REPOSITORY_URL=https://github.com/rh-joanders/msu.git
   - GIT_BRANCH=main
-  - APP_NAME=lamp-dev
+  - APP_NAME=lamp-main
   - INIT_DATABASE=yes

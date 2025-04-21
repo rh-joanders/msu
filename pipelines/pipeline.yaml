@@ -16,7 +16,7 @@ spec:
   - name: git-revision
     type: string
     description: Git revision to build
-    default: main
+    default: HEAD
   - name: image-name
     type: string
     description: Name of the image to build
