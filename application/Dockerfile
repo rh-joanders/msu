@@ -1,28 +1,23 @@
 # Use Red Hat Universal Base Image (UBI) with PHP 8.1
 FROM registry.access.redhat.com/ubi9/php-81:latest
 
-# Switch to root for installation tasks
+# Install MySQL extensions
 USER 0
+RUN yum -y install php-mysqlnd php-pdo && yum clean all
 
-# Install required packages
-RUN yum -y install \
-    php-mysqlnd \
-    php-pdo \
-    && yum clean all
+# The UBI PHP image expects content in /opt/app-root/src
+# But we need to handle the /public subdirectory pattern
 
-# Set up application files
+# Copy application files (as the default user)
+USER 1001
 COPY --chown=1001:0 . /opt/app-root/src/
-WORKDIR /opt/app-root/src/
 
-# Create symbolic links from the UBI expected document root to our public directory
-RUN ln -sf /opt/app-root/src/public/* /opt/app-root/src/ && \
-    chmod -R g+w /opt/app-root/src && \
+# Create an index.php in the root that includes the actual index.php from public
+RUN echo '<?php include "public/index.php"; ?>' > /opt/app-root/src/index.php && \
+    # Make storage writable
     chmod -R 777 /opt/app-root/src/storage
 
-# Switch back to default user
-USER 1001
-
-# Expose port 8080
+# Apache is already configured to listen on 8080 in the base image
 EXPOSE 8080
 
 # Start Apache
