@@ -8,15 +8,6 @@ spec:
     updates the Kubernetes manifests, and triggers ArgoCD to sync the application.
   workspaces:
     - name: shared-workspace
-      volumeClaimTemplate:
-        metadata:
-          creationTimestamp: null
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 1Gi
   params:
   - name: git-url
     type: string
@@ -37,7 +28,7 @@ spec:
   - name: add-latest-tag
     type: string
     description: Additional tag (latest) for the image
-    default: "TRUE"
+    default: "TRUE" 
   - name: deployment-path
     type: string
     description: Path to the kustomization.yaml file to update
@@ -45,6 +36,11 @@ spec:
   - name: app-name
     type: string
     description: Name of the ArgoCD application to sync
+    default: "lamp-dev"
+  - name: deployment-namespace
+    type: string
+    description: Namespace to deploy to
+    default: "lamp-dev"
   tasks:
   - name: fetch-repository
     taskRef:
@@ -105,10 +101,10 @@ spec:
       workspace: shared-workspace
     params:
     - name: image-name
-      value: $(params.image-name)
+      value: image-registry.openshift-image-registry.svc:5000/$(params.deployment-namespace)/$(params.image-name)
     - name: image-tag
       value: $(params.image-tag)
-    - name: deployment-path    # Match the parameter name in the task
+    - name: deployment-path
       value: $(params.deployment-path)
 
   - name: sync-application

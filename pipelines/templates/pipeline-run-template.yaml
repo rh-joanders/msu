@@ -16,8 +16,12 @@ spec:
   - name: git-revision
     value: ${GIT_BRANCH}
   - name: image-name
-    value: image-registry.openshift-image-registry.svc:5000/${DEPLOYMENT_NAMESPACE}/lamp-app
+    value: lamp-app
   - name: image-tag
     value: ${IMAGE_TAG}
+  - name: deployment-path
+    value: manifests/overlays/${APP_NAME}/kustomization.yaml
+  - name: app-name
+    value: ${APP_NAME}
   - name: deployment-namespace
-    value: ${DEPLOYMENT_NAMESPACE}
+    value: ${APP_NAME}
