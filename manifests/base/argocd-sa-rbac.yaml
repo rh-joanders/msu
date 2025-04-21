@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pipeline-sync
+  namespace: openshift-gitops
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: argocd-application-sync
+  namespace: openshift-gitops
+rules:
+- apiGroups: ["argoproj.io"]
+  resources: ["applications"]
+  verbs: ["get", "sync", "list", "watch"]
+- apiGroups: ["argoproj.io"]
+  resources: ["applications/status"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-sync-role
+  namespace: openshift-gitops
+subjects:
+- kind: ServiceAccount
+  name: pipeline-sync
+  namespace: openshift-gitops
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: argocd-application-sync

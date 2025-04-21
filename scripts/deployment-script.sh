@@ -399,147 +399,7 @@ else
   echo "Skipping pipeline trigger. Set TRIGGER_PIPELINE=yes to trigger a pipeline run."
 fi
 
-# Step 11: Apply the Tekton triggers for automatic pipeline runs
-echo "Setting up Tekton triggers..."
-TEMP_TRIGGER_TEMPLATE=$(mktemp)
-
-# Determine if we should tag as latest
-ADDITIONAL_TAGS=""
-if [ "${IMAGE_TAG_LATEST}" = "yes" ]; then
-  ADDITIONAL_TAGS="image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/lamp-app:latest"
-fi
-
-cat << EOF > "$TEMP_TRIGGER_TEMPLATE"
-apiVersion: triggers.tekton.dev/v1beta1
-kind: TriggerTemplate
-metadata:
-  name: lamp-trigger-template
-  namespace: $NAMESPACE
-spec:
-  params:
-  - name: git-repo-url
-    description: The git repository url
-  - name: git-revision
-    description: The git revision (branch, tag, or commit SHA)
-  - name: git-repo-name
-    description: The name of the git repository
-  - name: branch-name
-    description: The name of the branch that was pushed to
-  resourcetemplates:
-  - apiVersion: tekton.dev/v1beta1
-    kind: PipelineRun
-    metadata:
-      generateName: lamp-pipeline-run-
-      namespace: $NAMESPACE
-    spec:
-      serviceAccountName: pipeline
-      pipelineRef:
-        name: lamp-pipeline
-      workspaces:
-      - name: shared-workspace
-        persistentVolumeClaim:
-          claimName: pipeline-workspace-pvc
-      params:
-      - name: git-url
-        value: \$(tt.params.git-repo-url)
-      - name: git-revision
-        value: \$(tt.params.git-revision)
-      - name: image-name
-        value: image-registry.openshift-image-registry.svc:5000/${NAMESPACE}/lamp-app
-      - name: image-tag
-        value: \$(tt.params.branch-name)
-      - name: add-latest-tag
-        value: "${ADDITIONAL_TAGS}"
-      - name: deployment-path
-        value: manifests/overlays/${NAMESPACE}/kustomization.yaml
-EOF
-oc apply -f "$TEMP_TRIGGER_TEMPLATE"
-rm -f "$TEMP_TRIGGER_TEMPLATE"
-
-TEMP_TRIGGER_BINDING=$(mktemp)
-cat << EOF > "$TEMP_TRIGGER_BINDING"
-apiVersion: triggers.tekton.dev/v1beta1
-kind: TriggerBinding
-metadata:
-  name: lamp-git-push-binding
-  namespace: $NAMESPACE
-spec:
-  params:
-  - name: git-repo-url
-    value: \$(body.repository.url)
-  - name: git-revision
-    value: \$(body.after)
-  - name: git-repo-name
-    value: \$(body.repository.name)
-EOF
-oc apply -f "$TEMP_TRIGGER_BINDING"
-rm -f "$TEMP_TRIGGER_BINDING"
-
-TEMP_EVENT_LISTENER=$(mktemp)
-cat << EOF > "$TEMP_EVENT_LISTENER"
-apiVersion: triggers.tekton.dev/v1beta1
-kind: EventListener
-metadata:
-  name: lamp-git-webhook
-  namespace: $NAMESPACE
-spec:
-  serviceAccountName: pipeline
-  triggers:
-  - name: git-push-trigger
-    bindings:
-    - ref: lamp-git-push-binding
-    template:
-      ref: lamp-trigger-template
-    interceptors:
-    - name: filter-by-event-type
-      ref:
-        name: "cel"
-      params:
-      - name: "filter"
-        value: "body.ref.startsWith('refs/heads/${GIT_BRANCH}')"
-  resources:
-    kubernetesResource:
-      spec:
-        template:
-          spec:
-            serviceAccountName: pipeline
-            containers:
-            - resources:
-                limits:
-                  memory: 256Mi
-                  cpu: 100m
-                requests:
-                  memory: 128Mi
-                  cpu: 50m
-EOF
-oc apply -f "$TEMP_EVENT_LISTENER"
-rm -f "$TEMP_EVENT_LISTENER"
-
-TEMP_WEBHOOK_ROUTE=$(mktemp)
-cat << EOF > "$TEMP_WEBHOOK_ROUTE"
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: lamp-webhook-route
-  namespace: $NAMESPACE
-spec:
-  port:
-    targetPort: 8080
-  to:
-    kind: Service
-    name: el-lamp-git-webhook
-    weight: 100
-  tls:
-    termination: edge
-    insecureEdgeTerminationPolicy: Redirect
-EOF
-oc apply -f "$TEMP_WEBHOOK_ROUTE"
-rm -f "$TEMP_WEBHOOK_ROUTE"
-
-
-# Step 12: Print information and verify setup
-echo "=== Deployment Completed ==="
-# Step X: Create ArgoCD Configuration for Pipeline
+# Create ArgoCD Configuration for Pipeline
 echo "Setting up ArgoCD configuration for pipeline..."
 
 # Get ArgoCD server URL from route
@@ -718,10 +578,7 @@ EOF
 echo "Configuring pipeline ServiceAccount permissions..."
 oc policy add-role-to-user edit system:serviceaccount:${NAMESPACE}:pipeline -n ${NAMESPACE}
 
-
-
-
-
+echo "=== Deployment Completed ==="
 echo "Verifying setup..."
 
 # Function to check resource status
@@ -753,7 +610,3 @@ echo ""
 echo "ArgoCD console is available at:"
 ARGOCD_ROUTE=$(oc get route openshift-gitops-server -n "$ARGOCD_NAMESPACE" --template='{{.spec.host}}' 2>/dev/null || echo "<pending>")
 echo "  https://${ARGOCD_ROUTE}"
-echo ""
-echo "Webhook URL for Git repository:"
-WEBHOOK_ROUTE=$(oc get route lamp-webhook-route -n "$NAMESPACE" --template='{{.spec.host}}' 2>/dev/null || echo "<pending>")
-echo "  https://${WEBHOOK_ROUTE}"
