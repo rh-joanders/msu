@@ -1,3 +1,4 @@
+# Updated mysql-deployment.yaml with fixed readiness probe
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,17 +57,19 @@ spec:
           requests:
             memory: "256Mi"
             cpu: "250m"
-        # Health checks
+        # Health checks - UPDATED PROBES
         livenessProbe:
-          exec:
-            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+          tcpSocket:
+            port: 3306
           initialDelaySeconds: 30
           periodSeconds: 10
+          timeoutSeconds: 5
         readinessProbe:
-          exec:
-            command: ["mysqladmin", "ping", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
-          initialDelaySeconds: 5
-          periodSeconds: 5
+          tcpSocket:
+            port: 3306
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
       volumes:
       - name: mysql-persistent-storage
         persistentVolumeClaim:
