@@ -41,15 +41,7 @@ patchesStrategicMerge:
             requests:
               memory: "${PHP_MEMORY_REQUEST}"
               cpu: "${PHP_CPU_REQUEST}"
-          env:
-          - name: APP_ENV
-            value: "${APP_NAME}"
-          - name: MYSQL_DATABASE
-            value: "${MYSQL_DATABASE}"
-          - name: MYSQL_USER
-            value: "${MYSQL_USER}"
-          - name: MYSQL_PASSWORD
-            value: "${MYSQL_PASSWORD}"
+          # Environment variables are not overridden here
 
 - |-
   # Customize MySQL deployment
@@ -70,15 +62,7 @@ patchesStrategicMerge:
             requests:
               memory: "${MYSQL_MEMORY_REQUEST}"
               cpu: "${MYSQL_CPU_REQUEST}"
-          env:
-          - name: MYSQL_ROOT_PASSWORD
-            value: "${MYSQL_ROOT_PASSWORD}"
-          - name: MYSQL_DATABASE
-            value: "${MYSQL_DATABASE}"
-          - name: MYSQL_USER
-            value: "${MYSQL_USER}"
-          - name: MYSQL_PASSWORD
-            value: "${MYSQL_PASSWORD}"
+          # Environment variables are not overridden here
 
 - |-
   # Customize PVC for MySQL if storage class is specified
